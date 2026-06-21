@@ -28,6 +28,7 @@ a{color:inherit;}
 .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--muted2);text-transform:uppercase;margin-bottom:6px;}
 .muted{color:var(--muted);}
 .hidden{display:none !important;}
+.flag{height:1em;width:auto;border-radius:2px;vertical-align:-0.13em;box-shadow:0 0 0 1px rgba(0,0,0,.12);background:#eee;}
 .spinner{width:34px;height:34px;border-radius:50%;border:3px solid #E7E2D3;border-top-color:var(--blue);animation:spin 0.8s linear infinite;margin:60px auto;}
 @keyframes spin{to{transform:rotate(360deg);}}
 

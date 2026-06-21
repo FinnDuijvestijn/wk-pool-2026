@@ -283,10 +283,10 @@ async function adminDelPlayer(id) {
 async function adminAddTeam() {
   const code = ((document.getElementById("nt-code") || {}).value || "").trim().toUpperCase();
   const name = (document.getElementById("nt-name") || {}).value.trim();
-  const flag = (document.getElementById("nt-flag") || {}).value.trim() || "🏳️";
+  const cc = ((document.getElementById("nt-cc") || {}).value || "").trim().toLowerCase();
   if (!code || !name) { toast("Vul code én naam in.", "err"); return; }
   if (state.teams.some(t => t.code === code)) { toast("Die teamcode bestaat al.", "err"); return; }
-  state.teams.push({ code, name, flag });
+  state.teams.push({ code, name, cc });
   try { await saveSettings({ teams: state.teams }); state.settings = await loadSettings(); state.teams = state.settings.teams; rerender(); toast("Team toegevoegd.", "ok"); }
   catch (e) { toast("Mislukt: " + e.message, "err"); }
 }

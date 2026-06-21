@@ -19,17 +19,34 @@ const TOPSCORER_COUNT = 3;
 // Avatar palette (cycled per participant)
 const AVATAR_COLORS = ["#1F36C7", "#03B0AA", "#1A9D52", "#F0531C", "#E22B2B", "#16215E", "#2D6BE0", "#0E7C77"];
 
-// Default candidate teams (admin can add/remove later)
+// Default candidate teams — WK 2026 loting (48 landen, 12 poules).
+// cc = ISO-landcode voor de vlag-afbeelding (werkt op Windows/Android/iOS).
 const DEFAULT_TEAMS = [
-  ["ARG", "Argentinië", "🇦🇷"], ["FRA", "Frankrijk", "🇫🇷"], ["BRA", "Brazilië", "🇧🇷"], ["ESP", "Spanje", "🇪🇸"],
-  ["NED", "Nederland", "🇳🇱"], ["POR", "Portugal", "🇵🇹"], ["ENG", "Engeland", "🇬🇧"], ["GER", "Duitsland", "🇩🇪"],
-  ["BEL", "België", "🇧🇪"], ["CRO", "Kroatië", "🇭🇷"], ["MAR", "Marokko", "🇲🇦"], ["URU", "Uruguay", "🇺🇾"],
-  ["JPN", "Japan", "🇯🇵"], ["USA", "VS", "🇺🇸"], ["SEN", "Senegal", "🇸🇳"], ["DEN", "Denemarken", "🇩🇰"],
-  ["MEX", "Mexico", "🇲🇽"], ["CAN", "Canada", "🇨🇦"], ["COL", "Colombia", "🇨🇴"], ["SUI", "Zwitserland", "🇨🇭"],
-  ["KOR", "Zuid-Korea", "🇰🇷"], ["AUS", "Australië", "🇦🇺"], ["POL", "Polen", "🇵🇱"], ["SRB", "Servië", "🇷🇸"],
-  ["ECU", "Ecuador", "🇪🇨"], ["GHA", "Ghana", "🇬🇭"], ["IRN", "Iran", "🇮🇷"], ["KSA", "Saoedi-Arabië", "🇸🇦"],
-  ["NGA", "Nigeria", "🇳🇬"], ["AUT", "Oostenrijk", "🇦🇹"], ["NOR", "Noorwegen", "🇳🇴"], ["CRC", "Costa Rica", "🇨🇷"]
-].map(([code, name, flag]) => ({ code, name, flag }));
+  // Poule A
+  ["MEX", "Mexico", "mx"], ["RSA", "Zuid-Afrika", "za"], ["KOR", "Zuid-Korea", "kr"], ["CZE", "Tsjechië", "cz"],
+  // Poule B
+  ["CAN", "Canada", "ca"], ["BIH", "Bosnië en Herzegovina", "ba"], ["QAT", "Qatar", "qa"], ["SUI", "Zwitserland", "ch"],
+  // Poule C
+  ["BRA", "Brazilië", "br"], ["MAR", "Marokko", "ma"], ["HAI", "Haïti", "ht"], ["SCO", "Schotland", "gb-sct"],
+  // Poule D
+  ["USA", "Verenigde Staten", "us"], ["PAR", "Paraguay", "py"], ["AUS", "Australië", "au"], ["TUR", "Turkije", "tr"],
+  // Poule E
+  ["GER", "Duitsland", "de"], ["CUW", "Curaçao", "cw"], ["CIV", "Ivoorkust", "ci"], ["ECU", "Ecuador", "ec"],
+  // Poule F
+  ["NED", "Nederland", "nl"], ["JPN", "Japan", "jp"], ["SWE", "Zweden", "se"], ["TUN", "Tunesië", "tn"],
+  // Poule G
+  ["BEL", "België", "be"], ["EGY", "Egypte", "eg"], ["IRN", "Iran", "ir"], ["NZL", "Nieuw-Zeeland", "nz"],
+  // Poule H
+  ["ESP", "Spanje", "es"], ["CPV", "Kaapverdië", "cv"], ["KSA", "Saoedi-Arabië", "sa"], ["URU", "Uruguay", "uy"],
+  // Poule I
+  ["FRA", "Frankrijk", "fr"], ["SEN", "Senegal", "sn"], ["IRQ", "Irak", "iq"], ["NOR", "Noorwegen", "no"],
+  // Poule J
+  ["ARG", "Argentinië", "ar"], ["ALG", "Algerije", "dz"], ["AUT", "Oostenrijk", "at"], ["JOR", "Jordanië", "jo"],
+  // Poule K
+  ["POR", "Portugal", "pt"], ["COD", "Congo DR", "cd"], ["UZB", "Oezbekistan", "uz"], ["COL", "Colombia", "co"],
+  // Poule L
+  ["ENG", "Engeland", "gb-eng"], ["CRO", "Kroatië", "hr"], ["GHA", "Ghana", "gh"], ["PAN", "Panama", "pa"]
+].map(([code, name, cc]) => ({ code, name, cc }));
 
 // Default candidate players for topscorers (admin can add/remove later)
 const DEFAULT_PLAYERS = [

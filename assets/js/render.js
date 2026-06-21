@@ -5,6 +5,31 @@
 
 const LOGO = "assets/img/dsp-logo.png";
 
+/* ---------- flags (SVG images — render identically on Windows/Android/iOS) ---------- */
+const FLAG_BASE = "https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/flags/4x3/";
+function ccFromEmoji(e) {
+  if (!e) return null;
+  const cps = [...e].map(c => c.codePointAt(0));
+  // subdivision flags (England/Scotland/Wales): black flag + tag letters
+  if (cps[0] === 0x1F3F4) {
+    const tags = cps.filter(cp => cp >= 0xE0061 && cp <= 0xE007A).map(cp => String.fromCharCode(cp - 0xE0000)).join("");
+    if (tags.indexOf("gbeng") === 0) return "gb-eng";
+    if (tags.indexOf("gbsct") === 0) return "gb-sct";
+    if (tags.indexOf("gbwls") === 0) return "gb-wls";
+    return null;
+  }
+  const ri = cps.filter(cp => cp >= 0x1F1E6 && cp <= 0x1F1FF);
+  if (ri.length >= 2) return String.fromCharCode(97 + ri[0] - 0x1F1E6) + String.fromCharCode(97 + ri[1] - 0x1F1E6);
+  return null;
+}
+// Flag <img> sized via height:1em — the wrapping element's font-size controls the size.
+function flagHTML(cc, label) {
+  if (!cc) return `<span>🏳️</span>`;
+  return `<img class="flag" src="${FLAG_BASE}${cc}.svg" alt="${esc(label || "")}" loading="lazy">`;
+}
+function tflag(t) { return flagHTML(t.cc || ccFromEmoji(t.flag), t.name); }
+function pflag(p) { return flagHTML(p.cc || ccFromEmoji(p.flag), p.name); }
+
 /* ---------- helpers ---------- */
 function esc(s) {
   return String(s == null ? "" : s)
@@ -240,7 +265,7 @@ function pickList(stageKey, sourceCodes, max, accent, lightBg, lightBorder) {
     const full = chosen.length >= max && !on;
     const style = on ? `border-color:${accent};background:${lightBg};` : "";
     return `<div class="pick-row ${on ? "on" : ""} ${full ? "disabled" : ""}" style="${style}${full ? "opacity:.45;cursor:not-allowed;" : ""}" ${isLocked() ? "" : `data-action="toggle" data-stage="${stageKey}" data-code="${code}"`}>
-      <span class="fl">${t.flag}</span>
+      <span class="fl">${tflag(t)}</span>
       <span class="nm">${esc(t.name)}</span>
       <span class="tick" style="${on ? `background:${accent};color:#fff;` : ""}">${on ? "✓" : ""}</span>
     </div>`;
@@ -261,7 +286,7 @@ function renderVoorspellingen() {
     const on = d.sel16.includes(t.code);
     const full = count16 >= 16 && !on;
     return `<button type="button" class="team-btn ${on ? "sel" : ""} ${full ? "disabled" : ""}" ${locked || full ? "" : `data-action="toggle" data-stage="sel16" data-code="${t.code}"`}>
-      <span class="fl">${t.flag}</span>
+      <span class="fl">${tflag(t)}</span>
       <span class="nm">${esc(t.name)}</span>
       ${on ? `<span class="ring"></span><span class="check">✓</span>` : ""}
     </button>`;
@@ -271,7 +296,7 @@ function renderVoorspellingen() {
   const champ = champCode ? tm[champCode] : null;
   const champOptions = d.finalists.map(c => {
     const t = tm[c]; const on = d.winner === c;
-    return `<button type="button" class="btn ${on ? "btn-primary" : "btn-outline"} btn-sm" style="${on ? "background:var(--gold);color:var(--navy);" : ""}" ${locked ? "" : `data-action="toggle" data-stage="winner" data-code="${c}"`}>${t.flag} ${esc(t.name)}</button>`;
+    return `<button type="button" class="btn ${on ? "btn-primary" : "btn-outline"} btn-sm" style="${on ? "background:var(--gold);color:var(--navy);" : ""}" ${locked ? "" : `data-action="toggle" data-stage="winner" data-code="${c}"`}>${tflag(t)} ${esc(t.name)}</button>`;
   }).join(" ");
 
   const allComplete = d.sel16.length === 16 && d.quarter.length === 8 && d.semi.length === 4 && d.finalists.length === 2 && d.winner && d.topscorers.length === TOPSCORER_COUNT;
@@ -333,7 +358,7 @@ function renderVoorspellingen() {
         </div>
         <div class="champ-pick ${champ ? "" : "empty"}" style="position:relative;z-index:2;">
           ${champ
-      ? `<span style="font-size:42px;">${champ.flag}</span><div><div class="exp" style="font-weight:900;font-size:24px;letter-spacing:-.5px;">${esc(champ.name)}</div><div class="mono" style="font-size:12px;color:var(--gold);">JOUW WERELDKAMPIOEN 2026</div></div>`
+      ? `<span style="font-size:42px;">${tflag(champ)}</span><div><div class="exp" style="font-weight:900;font-size:24px;letter-spacing:-.5px;">${esc(champ.name)}</div><div class="mono" style="font-size:12px;color:var(--gold);">JOUW WERELDKAMPIOEN 2026</div></div>`
       : `<div style="color:#c7cee8;font-size:13.5px;">Kies hieronder je kampioen uit de 2 finalisten.</div>`}
         </div>
         ${d.finalists.length ? `<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;position:relative;z-index:2;">${champOptions}</div>` : ""}
@@ -369,7 +394,7 @@ function renderTopscorers() {
     if (p) {
       const g = Number(goals[p.id]) || 0;
       slots.push(`<div class="top3"><div class="slot">KEUZE ${i + 1}</div>
-        <div class="av">${p.flag}</div>
+        <div class="av">${pflag(p)}</div>
         <div style="flex:1;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc(p.club)}</div></div>
         <div style="text-align:right;"><div class="pt">${g * POINTS_PER_GOAL}</div><div class="gl">${g} GOALS</div></div></div>`);
     } else {
@@ -382,7 +407,7 @@ function renderTopscorers() {
     const full = d.topscorers.length >= TOPSCORER_COUNT && !chosen;
     const g = Number(goals[p.id]) || 0;
     return `<button type="button" class="player-card ${chosen ? "chosen" : ""}" ${locked || full ? "" : `data-action="topscorer" data-id="${p.id}"`} ${full ? "style='opacity:.5;cursor:not-allowed;'" : ""}>
-      <div class="row"><div class="av">${p.flag}</div>
+      <div class="row"><div class="av">${pflag(p)}</div>
         <div style="flex:1;min-width:0;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc(p.club)}</div></div>
       </div>
       <div class="meta"><span class="mt">${g} goals · ${g * POINTS_PER_GOAL} pt</span>
@@ -458,7 +483,7 @@ function renderKlassement() {
 function chipFlags(codes, bg, border) {
   const tm = teamMap();
   if (!codes.length) return `<span style="font-size:12.5px;color:var(--muted2);">— nog niet ingevuld —</span>`;
-  return codes.map(c => { const t = tm[c]; return t ? `<span class="chip-flag" style="background:${bg};border:1px solid ${border};">${t.flag} ${esc(t.name)}</span>` : ""; }).join("");
+  return codes.map(c => { const t = tm[c]; return t ? `<span class="chip-flag" style="background:${bg};border:1px solid ${border};">${tflag(t)} ${esc(t.name)}</span>` : ""; }).join("");
 }
 function renderMijn() {
   const d = state.draft;
@@ -467,11 +492,11 @@ function renderMijn() {
   const submitted = d.status === "ingeleverd";
   const goals = (state.settings.results && state.settings.results.goals) || {};
 
-  const sel16 = d.sel16.map(c => { const t = tm[c]; return t ? `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;background:#F7F8FF;border:1px solid #DCE1FB;border-radius:11px;padding:10px 4px;"><span style="font-size:22px;">${t.flag}</span><span style="font-size:10px;font-weight:700;text-align:center;line-height:1.1;color:#3a3d45;">${esc(t.name)}</span></div>` : ""; }).join("") || `<div style="grid-column:1/-1;color:var(--muted2);font-size:13px;">Nog geen teams gekozen.</div>`;
+  const sel16 = d.sel16.map(c => { const t = tm[c]; return t ? `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;background:#F7F8FF;border:1px solid #DCE1FB;border-radius:11px;padding:10px 4px;"><span style="font-size:22px;">${tflag(t)}</span><span style="font-size:10px;font-weight:700;text-align:center;line-height:1.1;color:#3a3d45;">${esc(t.name)}</span></div>` : ""; }).join("") || `<div style="grid-column:1/-1;color:var(--muted2);font-size:13px;">Nog geen teams gekozen.</div>`;
 
   const champ = d.winner ? tm[d.winner] : null;
   const tops = d.topscorers.map(pid => { const p = pm[pid]; if (!p) return ""; const g = Number(goals[p.id]) || 0;
-    return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;"><div style="width:42px;height:42px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${p.flag}</div><div style="flex:1;"><div class="exp" style="font-weight:800;font-size:14.5px;">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted2);">${esc(p.club)}</div></div><div style="text-align:right;"><div class="exp" style="font-weight:900;font-size:18px;color:var(--green);">${g * POINTS_PER_GOAL}</div><div class="mono" style="font-size:9px;color:var(--muted2);">${g} GOALS</div></div></div>`; }).join("") || `<span style="font-size:12.5px;color:var(--muted2);">Nog geen topscorers gekozen.</span>`;
+    return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;"><div style="width:42px;height:42px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${pflag(p)}</div><div style="flex:1;"><div class="exp" style="font-weight:800;font-size:14.5px;">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted2);">${esc(p.club)}</div></div><div style="text-align:right;"><div class="exp" style="font-weight:900;font-size:18px;color:var(--green);">${g * POINTS_PER_GOAL}</div><div class="mono" style="font-size:9px;color:var(--muted2);">${g} GOALS</div></div></div>`; }).join("") || `<span style="font-size:12.5px;color:var(--muted2);">Nog geen topscorers gekozen.</span>`;
 
   return renderShell(`
   <div class="page">
@@ -598,17 +623,17 @@ function renderAdmin() {
     const picked = res[st.key] || [];
     const opts = (state.teams || []).map(t => {
       const on = picked.includes(t.code);
-      return `<button type="button" class="res-btn ${on ? "on" : ""}" data-action="admin-result" data-stage="${st.key}" data-code="${t.code}"><span class="fl">${t.flag}</span>${esc(t.code)}</button>`;
+      return `<button type="button" class="res-btn ${on ? "on" : ""}" data-action="admin-result" data-stage="${st.key}" data-code="${t.code}"><span class="fl">${tflag(t)}</span>${esc(t.code)}</button>`;
     }).join("");
     return `<div style="margin-bottom:16px;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span class="swatch" style="width:8px;height:18px;border-radius:4px;background:${st.color};display:inline-block;"></span><strong style="font-size:13.5px;">${st.short}</strong> <span style="font-size:12px;color:var(--muted2);">(${picked.length}/${st.count} · ${st.points} pt)</span></div><div class="results-grid">${opts}</div></div>`;
   }).join("");
 
-  const winnerOpts = (state.teams || []).map(t => `<button type="button" class="btn ${res.winner === t.code ? "btn-primary" : "btn-outline"} btn-sm" style="${res.winner === t.code ? "background:var(--gold);color:var(--navy);" : ""}margin:0 6px 6px 0;" data-action="admin-winner" data-code="${t.code}">${t.flag} ${esc(t.code)}</button>`).join("");
+  const winnerOpts = (state.teams || []).map(t => `<button type="button" class="btn ${res.winner === t.code ? "btn-primary" : "btn-outline"} btn-sm" style="${res.winner === t.code ? "background:var(--gold);color:var(--navy);" : ""}margin:0 6px 6px 0;" data-action="admin-winner" data-code="${t.code}">${tflag(t)} ${esc(t.code)}</button>`).join("");
 
-  const goalRows = (state.players || []).map(p => `<div class="goal-row"><span style="font-size:13.5px;">${p.flag} ${esc(p.name)} <span style="color:var(--muted2);font-size:12px;">· ${esc(p.club)}</span></span><input class="gp-input" style="text-align:center;" type="number" min="0" value="${Number((res.goals || {})[p.id]) || 0}" data-action="admin-goal" data-id="${p.id}" title="Doelpunten in knock-out"></div>`).join("");
+  const goalRows = (state.players || []).map(p => `<div class="goal-row"><span style="font-size:13.5px;">${pflag(p)} ${esc(p.name)} <span style="color:var(--muted2);font-size:12px;">· ${esc(p.club)}</span></span><input class="gp-input" style="text-align:center;" type="number" min="0" value="${Number((res.goals || {})[p.id]) || 0}" data-action="admin-goal" data-id="${p.id}" title="Doelpunten in knock-out"></div>`).join("");
 
-  const playerList = (state.players || []).map(p => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${p.flag} ${esc(p.name)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-player" data-id="${p.id}" title="Verwijder">×</button></span>`).join("");
-  const teamList = (state.teams || []).map(t => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${t.flag} ${esc(t.code)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-team" data-code="${t.code}" title="Verwijder">×</button></span>`).join("");
+  const playerList = (state.players || []).map(p => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${pflag(p)} ${esc(p.name)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-player" data-id="${p.id}" title="Verwijder">×</button></span>`).join("");
+  const teamList = (state.teams || []).map(t => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${tflag(t)} ${esc(t.code)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-team" data-code="${t.code}" title="Verwijder">×</button></span>`).join("");
 
   const dlValue = state.settings.deadline ? new Date(new Date(state.settings.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
 
@@ -682,7 +707,7 @@ function renderAdmin() {
         <div class="inline-form">
           <input type="text" id="nt-code" placeholder="NED" style="width:70px;text-transform:uppercase;">
           <input type="text" id="nt-name" placeholder="Naam" style="flex:1;min-width:100px;">
-          <input type="text" id="nt-flag" placeholder="🇳🇱" style="width:60px;">
+          <input type="text" id="nt-cc" placeholder="nl" style="width:70px;" title="Landcode voor de vlag, bv. nl, br, gb-eng">
           <button type="button" class="btn btn-dark btn-sm" data-action="admin-add-team">+ Team</button>
         </div>
       </div>
