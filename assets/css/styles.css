@@ -320,7 +320,30 @@ select.field{appearance:none;-webkit-appearance:none;background-image:url("data:
 .setup ol{line-height:1.8;font-size:14px;color:#3a3d45;}
 
 /* ---------- responsive ---------- */
+/* ---------- mobile nav (hamburger + drawer) ---------- */
+.mobile-only{display:none;}
+.hamburger{align-items:center;justify-content:center;width:42px;height:42px;border:1.5px solid var(--border);border-radius:11px;background:#fff;font-size:19px;line-height:1;cursor:pointer;color:var(--ink);flex:none;padding:0;}
+.hamburger:hover{border-color:var(--ink);}
+.mm-overlay{display:none;}
+.mobile-menu{display:none;}
+.mm-user{display:flex;align-items:center;gap:12px;padding:4px 6px 12px;border-bottom:1px solid var(--border);margin-bottom:6px;}
+.mm-name{font-family:var(--exp);font-weight:800;font-size:16px;}
+.mm-role{font-family:var(--mono);font-size:10.5px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+.mm-list{display:flex;flex-direction:column;gap:2px;}
+.mm-item{display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px;border:none;background:none;border-radius:12px;font-family:var(--sans);font-weight:700;font-size:15.5px;color:var(--ink);cursor:pointer;text-align:left;}
+.mm-item:hover{background:var(--cream);}
+.mm-item.active{background:#EEF1FF;color:var(--blue);}
+.mm-arrow{color:var(--muted2);font-size:16px;}
+.mm-item.active .mm-arrow{color:var(--blue);}
+
 @media(max-width:900px){
+  .nav{display:none;}
+  .desktop-only{display:none !important;}
+  .mobile-only{display:flex;}
+  .brand .b2{display:none;}
+  .topbar-inner{gap:12px;}
+  .mm-overlay{display:block;position:fixed;left:0;right:0;bottom:0;top:71px;background:rgba(22,24,29,.38);z-index:55;}
+  .mobile-menu{display:flex;flex-direction:column;gap:6px;position:absolute;top:100%;left:0;right:0;background:#fff;border-top:1px solid var(--border);box-shadow:0 18px 34px -16px rgba(0,0,0,.45);padding:12px;z-index:60;max-height:calc(100vh - 71px);overflow-y:auto;}
   .auth-wrap{grid-template-columns:1fr;}
   .auth-hero{min-height:auto;padding:32px 24px;}
   .auth-panel{min-height:auto;}

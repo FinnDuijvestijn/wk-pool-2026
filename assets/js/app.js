@@ -8,6 +8,7 @@ const state = {
   loading: true,
   authMode: "login",
   authError: "",
+  menuOpen: false,          // mobile nav drawer
   claimable: [],            // pre-created accounts you can claim on register
   claimUsername: "",        // "" = none picked, "__new__" = brand-new account
   editUnlocked: false,      // admin gave me rights to edit after submitting
@@ -90,6 +91,7 @@ async function navigate(screen) {
     try { await savePrediction(state.draft); state.dirty = false; await refreshAfterPrediction(); } catch (e) {}
   }
   if (screen === "admin" && !(state.session && state.session.is_admin)) screen = "dashboard";
+  state.menuOpen = false;
   state.screen = screen;
   rerender();
 }
@@ -398,6 +400,8 @@ function onClick(e) {
     case "authtab": state.authMode = d.mode; state.authError = ""; rerender(); break;
     case "authsubmit": doAuth(); break;
     case "logout": logout(); break;
+    case "togglemenu": state.menuOpen = !state.menuOpen; rerender(true); break;
+    case "closemenu": state.menuOpen = false; rerender(true); break;
     case "nav": navigate(d.screen); break;
     case "toggle": toggleStage(d.stage, d.code); break;
     case "topscorer": toggleTopscorer(d.id); break;

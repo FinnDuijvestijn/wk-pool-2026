@@ -183,11 +183,25 @@ function renderShell(inner) {
       <nav class="nav">${navItems()}</nav>
       <div class="topbar-right">
         <div class="points-pill"><span class="lbl">PNT</span><span class="val">${myTotal}</span></div>
-        <div class="avatar" style="background:${colorFor(u.username)};">${initial(u.username)}</div>
-        <button type="button" class="btn-ghost btn" style="padding:6px 8px;font-size:13px;" data-action="logout">Uitloggen</button>
+        <div class="avatar desktop-only" style="background:${colorFor(u.username)};">${initial(u.username)}</div>
+        <button type="button" class="btn-ghost btn desktop-only" style="padding:6px 8px;font-size:13px;" data-action="logout">Uitloggen</button>
+        <button type="button" class="hamburger mobile-only" data-action="togglemenu" aria-label="Menu" aria-expanded="${state.menuOpen ? "true" : "false"}">${state.menuOpen ? "✕" : "☰"}</button>
       </div>
     </div>
     <div class="rainbow-stripe"></div>
+    ${state.menuOpen ? `
+    <div class="mm-overlay" data-action="closemenu"></div>
+    <div class="mobile-menu">
+      <div class="mm-user">
+        <div class="avatar" style="background:${colorFor(u.username)};">${initial(u.username)}</div>
+        <div class="mm-user-info">
+          <div class="mm-name">${esc(u.username)}</div>
+          <div class="mm-role">${u.is_admin ? "Beheerder" : "Deelnemer"} · ${myTotal} pnt</div>
+        </div>
+      </div>
+      <div class="mm-list">${navItemsMobile()}</div>
+      <button type="button" class="btn btn-outline btn-block" data-action="logout" style="margin-top:8px;">Uitloggen</button>
+    </div>` : ""}
   </div>
   ${inner}
   <div class="foot"><div class="foot-inner">
