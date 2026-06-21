@@ -110,14 +110,22 @@ function renderAuth() {
 /* ============================================================
    APP SHELL (topbar + footer wrap a screen)
    ============================================================ */
-function navItems() {
+function navDefs() {
   const items = [
     ["dashboard", "Dashboard"], ["voorspellingen", "Voorspellingen"], ["topscorers", "Topscorers"],
     ["klassement", "Klassement"], ["mijn", "Mijn voorspellingen"], ["reglement", "Reglement"]
   ];
   if (state.session && state.session.is_admin) items.push(["admin", "Admin"]);
-  return items.map(([id, label]) =>
+  return items;
+}
+function navItems() {
+  return navDefs().map(([id, label]) =>
     `<button type="button" class="nav-btn ${state.screen === id ? "active" : ""}" data-action="nav" data-screen="${id}">${label}</button>`
+  ).join("");
+}
+function navItemsMobile() {
+  return navDefs().map(([id, label]) =>
+    `<button type="button" class="mm-item ${state.screen === id ? "active" : ""}" data-action="nav" data-screen="${id}"><span>${label}</span><span class="mm-arrow">→</span></button>`
   ).join("");
 }
 function renderShell(inner) {
