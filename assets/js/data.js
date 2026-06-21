@@ -6,11 +6,11 @@
 
 // Scoring per correctly predicted team, per stage (from the reglement)
 const KO_STAGES = [
-  { key: "sel16",     label: "Laatste 16 — eerste knock-outronde", short: "Laatste 16", count: 16, points: 40,  color: "#1F36C7" },
-  { key: "quarter",   label: "Kwartfinalisten",                    short: "Kwartfinale", count: 8,  points: 80,  color: "#03B0AA" },
-  { key: "semi",      label: "Halve finalisten",                   short: "Halve finale",count: 4,  points: 150, color: "#1A9D52" },
-  { key: "finalists", label: "Finalisten",                         short: "Finale",      count: 2,  points: 250, color: "#F0531C" },
-  { key: "winner",    label: "Wereldkampioen",                     short: "Kampioen",    count: 1,  points: 400, color: "#E22B2B" }
+  { key: "sel16",     label: "8e finales (laatste 16)", short: "8e finales",   count: 16, points: 40,  color: "#1F36C7" },
+  { key: "quarter",   label: "Kwartfinales",            short: "Kwartfinale",  count: 8,  points: 80,  color: "#03B0AA" },
+  { key: "semi",      label: "Halve finales",           short: "Halve finale", count: 4,  points: 150, color: "#1A9D52" },
+  { key: "finalists", label: "Finale",                  short: "Finale",       count: 2,  points: 250, color: "#F0531C" },
+  { key: "winner",    label: "Wereldkampioen",          short: "Kampioen",     count: 1,  points: 400, color: "#E22B2B" }
 ];
 
 const POINTS_PER_GOAL = 25;     // topscorers: 25 punten per doelpunt in de knock-outfase

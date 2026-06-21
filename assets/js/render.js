@@ -297,8 +297,8 @@ function renderVoorspellingen() {
       <div class="stage-head" style="justify-content:space-between;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:12px;">
           <div class="stage-badge" style="background:var(--blue);">16</div>
-          <div><div class="stage-title">Laatste 16 — eerste knock-outronde</div>
-          <div class="stage-sub">Selecteer welke 16 landen de knock-outfase halen · <strong style="color:var(--blue);">40 punten</strong> per goed</div></div>
+          <div><div class="stage-title">8e finales (laatste 16)</div>
+          <div class="stage-sub">Selecteer welke 16 landen de 8e finales halen · <strong style="color:var(--blue);">40 punten</strong> per goed</div></div>
         </div>
         <div class="counter" style="${counterStyle}">${count16} / 16 geselecteerd</div>
       </div>
@@ -522,7 +522,7 @@ function renderReglement() {
   const pct = (state.settings.prize_pct) || [70, 20, 10];
   const ko = KO_STAGES.map(st => `
     <div class="ko-row"><span class="swatch" style="background:${st.color};"></span>
-      <span class="lab">${st.short === "Laatste 16" ? "Laatste 16 — eerste knock-outronde" : st.short === "Kampioen" ? "Wereldkampioen" : st.label}</span>
+      <span class="lab">${st.label}</span>
       <span class="per" style="color:${st.color};">${st.points} pt</span>
       <span style="font-size:12px;color:var(--muted2);width:64px;text-align:right;">per goed</span>
     </div>`).join("");
@@ -534,7 +534,7 @@ function renderReglement() {
     <p style="font-size:14px;color:var(--muted);margin:0 0 30px;">De stand na de groepsfase (t/m zondag 21 juni, inclusief België – Iran) vormt de startstand. Punten uit deze fase blijven staan en tellen volledig mee in het eindklassement.</p>
 
     <div class="reg-card"><div class="reg-head"><div class="reg-num" style="background:var(--blue);">1</div>
-      <div><h3>Voorspellingen knock-outfase</h3><p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#3a3d45;">Vóór de start van de knock-outfase levert iedere deelnemer éénmalig zijn voorspellingen in. Te voorspellen: de 16 teams die de eerste knock-outronde halen, de 8 kwartfinalisten, de 4 halve finalisten, de 2 finalisten en de wereldkampioen.</p><p style="margin:0;font-size:13px;color:#A52121;"><strong>Let op:</strong> voorspellingen zijn definitief na inleveren — wijzigingen achteraf zijn niet mogelijk.</p></div>
+      <div><h3>Voorspellingen knock-outfase</h3><p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#3a3d45;">Vóór de start van de knock-outfase levert iedere deelnemer éénmalig zijn voorspellingen in. Te voorspellen: de 16 teams die de 8e finales halen, de 8 kwartfinalisten, de 4 halve finalisten, de 2 finalisten en de wereldkampioen.</p><p style="margin:0;font-size:13px;color:#A52121;"><strong>Let op:</strong> voorspellingen zijn definitief na inleveren — wijzigingen achteraf zijn niet mogelijk.</p></div>
     </div></div>
 
     <div class="reg-card"><div class="reg-head"><div class="reg-num" style="background:var(--blue);">2</div>
