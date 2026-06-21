@@ -696,8 +696,8 @@ function renderAdmin() {
         <div style="margin-bottom:14px;">${playerList || `<span style="color:var(--muted2);font-size:13px;">Geen spelers.</span>`}</div>
         <div class="inline-form">
           <input type="text" id="np-name" placeholder="Naam" style="flex:1;min-width:120px;">
-          <input type="text" id="np-flag" placeholder="🏳️" style="width:60px;">
-          <input type="text" id="np-club" placeholder="Club" style="width:120px;">
+          <input type="text" id="np-cc" placeholder="ar" style="width:60px;" title="Landcode voor de vlag, bv. nl, br, gb-eng">
+          <input type="text" id="np-club" placeholder="Land" style="width:120px;">
           <button type="button" class="btn btn-dark btn-sm" data-action="admin-add-player">+ Speler</button>
         </div>
       </div>

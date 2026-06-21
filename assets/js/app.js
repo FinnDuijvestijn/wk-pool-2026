@@ -266,12 +266,12 @@ async function adminSaveResults() {
 }
 async function adminAddPlayer() {
   const name = (document.getElementById("np-name") || {}).value.trim();
-  const flag = (document.getElementById("np-flag") || {}).value.trim() || "⚽";
+  const cc = ((document.getElementById("np-cc") || {}).value || "").trim().toLowerCase();
   const club = (document.getElementById("np-club") || {}).value.trim();
   if (!name) { toast("Vul een spelersnaam in.", "err"); return; }
   const id = slugify(name);
   if (state.players.some(p => p.id === id)) { toast("Die speler bestaat al.", "err"); return; }
-  state.players.push({ id, name, flag, club });
+  state.players.push({ id, name, cc, club });
   try { await saveSettings({ players: state.players }); state.settings = await loadSettings(); state.players = state.settings.players; rerender(); toast("Speler toegevoegd.", "ok"); }
   catch (e) { toast("Mislukt: " + e.message, "err"); }
 }

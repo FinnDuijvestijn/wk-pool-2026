@@ -48,15 +48,26 @@ const DEFAULT_TEAMS = [
   ["ENG", "Engeland", "gb-eng"], ["CRO", "Kroatië", "hr"], ["GHA", "Ghana", "gh"], ["PAN", "Panama", "pa"]
 ].map(([code, name, cc]) => ({ code, name, cc }));
 
-// Default candidate players for topscorers (admin can add/remove later)
+// Default candidate players for topscorers (admin can add/remove/score later).
+// club-veld toont het land; cc = vlag-landcode. Doelpunten staan in settings.results.goals.
 const DEFAULT_PLAYERS = [
-  ["Kylian Mbappé", "🇫🇷", "Real Madrid"], ["Erling Haaland", "🇳🇴", "Manchester City"],
-  ["Lionel Messi", "🇦🇷", "Inter Miami"], ["Harry Kane", "🇬🇧", "Bayern München"],
-  ["Vinícius Jr.", "🇧🇷", "Real Madrid"], ["Robert Lewandowski", "🇵🇱", "Barcelona"],
-  ["Jude Bellingham", "🇬🇧", "Real Madrid"], ["Cody Gakpo", "🇳🇱", "Liverpool"],
-  ["Julián Álvarez", "🇦🇷", "Atlético"], ["Victor Osimhen", "🇳🇬", "Galatasaray"],
-  ["Christian Pulisic", "🇺🇸", "AC Milan"], ["Heung-min Son", "🇰🇷", "Tottenham"]
-].map(([name, flag, club]) => ({ id: slugify(name), name, flag, club }));
+  // huidige topscorers (knock-out)
+  ["Lionel Messi", "ar", "Argentinië"], ["Jonathan David", "ca", "Canada"],
+  ["Deniz Undav", "de", "Duitsland"], ["Erling Haaland", "no", "Noorwegen"],
+  ["Elijah Just", "nz", "Nieuw-Zeeland"], ["Daichi Kamada", "jp", "Japan"],
+  ["Ismael Saibari", "ma", "Marokko"], ["Ayase Ueda", "jp", "Japan"],
+  ["Harry Kane", "gb-eng", "Engeland"], ["Kylian Mbappé", "fr", "Frankrijk"],
+  ["Yasin Ayari", "se", "Zweden"], ["Folarin Balogun", "us", "Verenigde Staten"],
+  ["Brian Brobbey", "nl", "Nederland"], ["Matheus Cunha", "br", "Brazilië"],
+  ["Cody Gakpo", "nl", "Nederland"], ["Kai Havertz", "de", "Duitsland"],
+  ["Cyle Larin", "ca", "Canada"], ["Johan Manzambi", "ch", "Zwitserland"],
+  ["Crysencio Summerville", "nl", "Nederland"], ["Vinícius Júnior", "br", "Brazilië"],
+  // grote namen die nog moeten scoren
+  ["Jude Bellingham", "gb-eng", "Engeland"], ["Lamine Yamal", "es", "Spanje"],
+  ["Mohamed Salah", "eg", "Egypte"], ["Heung-min Son", "kr", "Zuid-Korea"],
+  ["Julián Álvarez", "ar", "Argentinië"], ["Florian Wirtz", "de", "Duitsland"],
+  ["Achraf Hakimi", "ma", "Marokko"], ["Rafael Leão", "pt", "Portugal"]
+].map(([name, cc, club]) => ({ id: slugify(name), name, cc, club }));
 
 // Default deadline (admin can change): zondag 21 juni 2026, 23:59
 const DEFAULT_DEADLINE = "2026-06-21T23:59:00";
