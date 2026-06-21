@@ -240,6 +240,7 @@ select.field{appearance:none;-webkit-appearance:none;background-image:url("data:
 .podium .prize{font-family:var(--mono);font-size:10px;color:#8a8e98;margin-top:2px;}
 .board{background:#fff;border:1px solid var(--border);border-radius:18px;overflow:hidden;}
 .board-head,.board-row{display:grid;grid-template-columns:48px 1fr 110px 110px 110px 90px;gap:8px;padding:13px 20px;align-items:center;}
+.board-compact .board-head,.board-compact .board-row{grid-template-columns:48px 1fr 110px;}
 .board-head{background:#FBFAF5;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--muted2);text-transform:uppercase;}
 .board-row{border-bottom:1px solid #F1EDE2;}
 .board-row.me{background:#F2F5FF;}

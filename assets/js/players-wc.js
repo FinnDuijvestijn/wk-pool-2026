@@ -114,9 +114,9 @@ const WC_SQUADS = [
   /* ---------------- Poule E ---------------- */
   { code: "GER", cc: "de", country: "Duitsland",
     K: ["Manuel Neuer (Bayern München)", "Oliver Baumann (TSG Hoffenheim)", "Alexander Nübel (VfB Stuttgart)"],
-    V: ["Nico Schlotterbeck (Borussia Dortmund)", "Antonio Rüdiger (Real Madrid)", "David Raum (RB Leipzig)", "Jonathan Tah (Bayern München)", "Waldemar Anton (Borussia Dortmund)", "Nathaniel Brown (Eintracht Frankfurt)", "Malick Thiaw (Newcastle United)"],
-    M: ["Joshua Kimmich (Bayern München)", "Jamal Musiala (Bayern München)", "Pascal Gross (Brighton & Hove Albion)", "Leon Goretzka (Bayern München)", "Florian Wirtz (Liverpool)", "Aleksander Pavlovic (Bayern München)", "Felix Nmecha (Borussia Dortmund)", "Angelo Stiller (VfB Stuttgart)", "Nadiem Amiri (FSV Mainz)"],
-    A: ["Leroy Sané (Galatasaray)", "Nick Woltemade (Newcastle United)", "Deniz Undav (VfB Stuttgart)", "Jamie Leweling (VfB Stuttgart)", "Kai Havertz (Arsenal)", "Lennart Karl (Bayern München)", "Maximilian Beier (Borussia Dortmund)"] },
+    V: ["Nico Schlotterbeck (Borussia Dortmund)", "Antonio Rüdiger (Real Madrid)", "David Raum (RB Leipzig)", "Jonathan Tah (Bayern München)", "Waldemar Anton (Borussia Dortmund)", "Nathaniel Brown (Eintracht Frankfurt)", "Malick Thiaw (Newcastle United)", "Joshua Kimmich (Bayern München)"],
+    M: ["Jamal Musiala (Bayern München)", "Pascal Gross (Brighton & Hove Albion)", "Leon Goretzka (Bayern München)", "Florian Wirtz (Liverpool)", "Aleksander Pavlovic (Bayern München)", "Felix Nmecha (Borussia Dortmund)", "Angelo Stiller (VfB Stuttgart)", "Nadiem Amiri (FSV Mainz)", "Kai Havertz (Arsenal)"],
+    A: ["Leroy Sané (Galatasaray)", "Nick Woltemade (Newcastle United)", "Deniz Undav (VfB Stuttgart)", "Jamie Leweling (VfB Stuttgart)", "Lennart Karl (Bayern München)", "Maximilian Beier (Borussia Dortmund)"] },
 
   { code: "CUW", cc: "cw", country: "Curaçao",
     K: ["Tyrick Bodak (Telstar)", "Trevor Doornbusch (VVV-Venlo)", "Eloy Room (Miami FC)"],

@@ -14,8 +14,8 @@ Volledig statisch (HTML/CSS/JS) — draait op **GitHub Pages** met een gratis
 - **Inloggen/registreren** met alleen een gebruikersnaam + wachtwoord (géén e-mail).
 - De **eerste geregistreerde deelnemer wordt automatisch beheerder**.
 - **Knock-out voorspellingen** met puntentelling volgens het reglement (40/80/150/250/400).
-- **3 topscorers** — 25 punten per doelpunt in de knock-outfase.
-- **Deadline**: na de deadline kan niemand nog wijzigen (door admin in te stellen).
+- **3 topscorers** — punten per doelpunt naar positie: keeper/verdediger 80, middenvelder 40, aanvaller 20.
+- **Deadline**: deelnemers kunnen wijzigen tot de deadline (ook na inleveren); daarna telt de laatste inzending. Een admin kan per deelnemer het wijzigen weer openzetten.
 - **Live klassement** met podium en prijzenpot (70/20/10, aanpasbaar).
 - **Admin-paneel**: deadline, prijzen, deelnemers beheren (admin maken/afnemen, verwijderen,
   inleg ✓, groepsfase-punten), **uitslagen + doelpunten invoeren**, teams/spelers beheren.

@@ -207,11 +207,12 @@ function scoreKnockout(pred, results) {
   return { total, breakdown };
 }
 
-function scoreTopscorers(pred, results) {
+function scoreTopscorers(pred, results, posById) {
   const goals = results.goals || {};
   let total = 0;
   for (const pid of (pred.topscorers || [])) {
-    total += (Number(goals[pid]) || 0) * POINTS_PER_GOAL;
+    const pts = goalPointsForPos(posById ? posById[pid] : "A");
+    total += (Number(goals[pid]) || 0) * pts;
   }
   return total;
 }
@@ -222,10 +223,14 @@ function buildLeaderboard(users, predictions, settings) {
   predictions.forEach(p => { predByUser[p.user_id] = p; });
   const results = settings.results || {};
 
+  // player id -> position, for position-based topscorer points
+  const posById = {};
+  buildPlayerPool(settings.players).forEach(p => { posById[p.id] = p.pos; });
+
   const rows = users.map(u => {
     const pred = predByUser[u.id] || emptyPrediction(u.id);
     const ko = scoreKnockout(pred, results);
-    const ts = scoreTopscorers(pred, results);
+    const ts = scoreTopscorers(pred, results, posById);
     const g = Number(u.group_points) || 0;
     return {
       id: u.id, name: u.username, is_admin: u.is_admin, paid: u.paid,

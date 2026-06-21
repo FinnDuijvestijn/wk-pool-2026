@@ -54,11 +54,12 @@ function deadlinePassed() {
   const dl = state.settings && state.settings.deadline;
   return dl ? Date.now() > new Date(dl).getTime() : false;
 }
-// Admin granted me the right to edit again after submitting / after the deadline.
+// Admin granted me the right to edit again after the deadline.
 function editUnlocked() { return !!state.editUnlocked; }
+// You can keep editing until the deadline — even after handing in a "final"
+// version. The deadline is the only hard lock (an admin can reopen it).
 function isLocked() {
-  if (editUnlocked()) return false;
-  return deadlinePassed() || (state.draft && state.draft.status === "ingeleverd");
+  return !editUnlocked() && deadlinePassed();
 }
 // A prediction counts as final once submitted OR once the deadline passes
 // (forgot to submit → latest concept becomes the final entry).
@@ -203,9 +204,9 @@ function renderDashboard() {
   const locked = isLocked();
   const submitted = state.draft && state.draft.status === "ingeleverd";
   let statusColor, statusText, statusSub;
-  if (editUnlocked() && submitted) { statusColor = "var(--blue)"; statusText = "Bewerken open 🔓"; statusSub = "Een beheerder zette je voorspelling open"; }
-  else if (submitted) { statusColor = "var(--green)"; statusText = "Ingeleverd ✓"; statusSub = "Je voorspelling staat vast"; }
-  else if (deadlinePassed()) { statusColor = "var(--green)"; statusText = "Definitief ✓"; statusSub = "Je laatste concept telt als inzending"; }
+  if (deadlinePassed() && editUnlocked()) { statusColor = "var(--blue)"; statusText = "Bewerken open 🔓"; statusSub = "Een beheerder zette je voorspelling open"; }
+  else if (deadlinePassed()) { statusColor = "var(--green)"; statusText = "Definitief ✓"; statusSub = submitted ? "Je voorspelling staat vast" : "Je laatste inzending telt mee"; }
+  else if (submitted) { statusColor = "var(--green)"; statusText = "Ingeleverd ✓"; statusSub = "Je kunt nog wijzigen tot de deadline"; }
   else { statusColor = "var(--orange)"; statusText = "Concept opgeslagen"; statusSub = "Nog niet definitief ingeleverd"; }
 
   const top5 = (state.leaderboard || []).slice(0, 5).map(r => `
@@ -244,7 +245,7 @@ function renderDashboard() {
         <div class="lbl">Jouw status</div>
         <div class="exp" style="font-weight:800;font-size:18px;color:${statusColor};">${statusText}</div>
         <div class="sub">${statusSub}</div>
-        ${!locked && !submitted ? `<button type="button" class="btn btn-dark btn-block btn-sm" style="margin-top:13px;padding:9px;" data-action="nav" data-screen="voorspellingen">Afmaken &amp; inleveren →</button>` : ""}
+        ${!locked ? `<button type="button" class="btn btn-dark btn-block btn-sm" style="margin-top:13px;padding:9px;" data-action="nav" data-screen="voorspellingen">${submitted ? "Voorspelling wijzigen →" : "Afmaken &amp; inleveren →"}</button>` : ""}
       </div>
       <div class="stat">
         <div class="bar" style="background:var(--blue);"></div>
@@ -276,7 +277,7 @@ function renderDashboard() {
           </div>
           <div class="quick" data-action="nav" data-screen="topscorers" style="--c:var(--green);">
             <div class="ic" style="background:#E9F7EE;">⚽</div>
-            <div style="flex:1;"><div class="t1">Kies je 3 topscorers</div><div class="t2">25 punten per doelpunt in de knock-outfase</div></div>
+            <div style="flex:1;"><div class="t1">Kies je 3 topscorers</div><div class="t2">20–80 punten per doelpunt · afhankelijk van positie</div></div>
             <span class="arrow" style="color:var(--green);">→</span>
           </div>
           <div class="quick" data-action="nav" data-screen="reglement">
@@ -348,13 +349,13 @@ function renderVoorspellingen() {
 
   const allComplete = d.sel16.length === 16 && d.quarter.length === 8 && d.semi.length === 4 && d.finalists.length === 2 && d.winner && d.topscorers.length === TOPSCORER_COUNT;
 
-  const lockBanner = (editUnlocked() && (submitted || deadlinePassed()))
-    ? `<div class="lockbar" style="background:#EEF1FF;border-color:#C9D2F7;"><span style="font-size:15px;">🔓</span><p>Een beheerder heeft jouw voorspelling <strong>opengezet om te wijzigen</strong>. Pas hem aan en lever opnieuw definitief in.</p></div>`
-    : submitted
-      ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>Je voorspelling is <strong>definitief ingeleverd</strong> en kan niet meer gewijzigd worden.</p></div>`
-      : deadlinePassed()
-        ? `<div class="lockbar"><span style="font-size:15px;">⏰</span><p>De deadline is verstreken — je laatste concept geldt als je definitieve inzending.</p></div>`
-        : "";
+  const lockBanner = deadlinePassed()
+    ? (editUnlocked()
+        ? `<div class="lockbar" style="background:#EEF1FF;border-color:#C9D2F7;"><span style="font-size:15px;">🔓</span><p>Een beheerder heeft jouw voorspelling <strong>opengezet om te wijzigen</strong> na de deadline. Pas hem aan en lever opnieuw in.</p></div>`
+        : `<div class="lockbar"><span style="font-size:15px;">⏰</span><p>De deadline is verstreken — je laatste inzending is <strong>vergrendeld</strong>.</p></div>`)
+    : (submitted
+        ? `<div class="lockbar" style="background:#E9F7EE;border-color:#BFE6CE;"><span style="font-size:15px;">✅</span><p>Je voorspelling is <strong>ingeleverd</strong> — je kunt hem nog aanpassen tot de deadline. Wijzigingen worden automatisch bewaard.</p></div>`
+        : "");
 
   return renderShell(`
   <div class="page">
@@ -365,7 +366,7 @@ function renderVoorspellingen() {
       </div>
       <div class="deadpill"><span style="font-size:14px;">⏳</span><span class="t">DEADLINE: ${fmtDeadline(state.settings.deadline).toUpperCase()}</span></div>
     </div>
-    ${lockBanner || `<div class="warn" style="margin-top:14px;"><span style="font-size:15px;">⚠️</span><p>Let op: voorspellingen zijn <strong>definitief na inleveren</strong>. Wijzigingen achteraf zijn niet mogelijk.</p></div>`}
+    ${lockBanner || `<div class="lockbar" style="margin-top:14px;"><span style="font-size:15px;">🛈</span><p>Je kunt je voorspellingen <strong>blijven wijzigen tot de deadline</strong>. Daarna telt automatisch je laatste inzending mee.</p></div>`}
 
     <div class="stage-card">
       <div class="stage-head" style="justify-content:space-between;flex-wrap:wrap;">
@@ -418,7 +419,7 @@ function renderVoorspellingen() {
     ${d.topscorers.length < TOPSCORER_COUNT ? `
     <button type="button" class="topscorer-cta" data-action="nav" data-screen="topscorers">
       <span class="ic">⚽</span>
-      <span class="tx"><span class="t1">Stap 2 — kies je ${TOPSCORER_COUNT} topscorers</span><span class="t2">Verplicht om in te leveren · 25 punten per doelpunt · (${d.topscorers.length}/${TOPSCORER_COUNT} gekozen)</span></span>
+      <span class="tx"><span class="t1">Stap 2 — kies je ${TOPSCORER_COUNT} topscorers</span><span class="t2">Verplicht om in te leveren · punten per goal o.b.v. positie · (${d.topscorers.length}/${TOPSCORER_COUNT} gekozen)</span></span>
       <span class="ar">→</span>
     </button>` : `
     <div class="topscorer-cta done" data-action="nav" data-screen="topscorers">
@@ -427,7 +428,7 @@ function renderVoorspellingen() {
       <span class="ar">→</span>
     </div>`}
     <div class="submitbar">
-      <div style="font-size:13px;color:var(--muted);">Je voortgang wordt automatisch als concept bewaard. Klaar? Lever definitief in.</div>
+      <div style="font-size:13px;color:var(--muted);">Je voortgang wordt automatisch bewaard. Je kunt tot de deadline blijven wijzigen.</div>
       <div style="display:flex;gap:10px;">
         <button type="button" class="btn btn-outline" data-action="savedraft">Concept opslaan</button>
         <button type="button" class="btn btn-primary" data-action="submitfinal">Definitief inleveren →</button>
@@ -477,7 +478,7 @@ function renderTopscorers() {
       slots.push(`<div class="top3"><div class="slot">KEUZE ${i + 1}</div>
         <div class="av">${pflag(p)}</div>
         <div style="flex:1;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc(p.club)}</div></div>
-        <div style="text-align:right;"><div class="pt">${g * POINTS_PER_GOAL}</div><div class="gl">${g} GOALS</div></div></div>`);
+        <div style="text-align:right;"><div class="pt">${g * goalPointsForPos(p.pos)}</div><div class="gl">${g} GOALS</div></div></div>`);
     } else {
       slots.push(`<div class="top3 empty"><div>Keuze ${i + 1}<br><span style="font-size:11px;">nog leeg</span></div></div>`);
     }
@@ -495,7 +496,7 @@ function renderTopscorers() {
       <div class="row"><div class="av">${pflag(p)}</div>
         <div style="flex:1;min-width:0;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc(sub)}</div></div>
       </div>
-      <div class="meta"><span class="mt">${g} goals · ${g * POINTS_PER_GOAL} pt</span>
+      <div class="meta"><span class="mt">${g} goals · ${g * goalPointsForPos(p.pos)} pt · ${goalPointsForPos(p.pos)}/goal</span>
         <span class="badge ${chosen ? "on" : ""} ${full ? "disabled" : ""}">${chosen ? "✓ Gekozen" : "+ Kies"}</span>
       </div>
     </button>`;
@@ -505,8 +506,14 @@ function renderTopscorers() {
   <div class="page">
     <div class="eyebrow">Stap 2 van 2 · Spelers</div>
     <h1 class="display" style="font-size:30px;margin-bottom:6px;">Kies je 3 topscorers</h1>
-    <p style="font-size:14px;color:var(--muted);margin:0 0 22px;max-width:560px;"><strong style="color:var(--green);">25 punten per doelpunt</strong> dat je speler maakt in de knock-outfase. Geen onderscheid naar positie, geen punten voor assists.</p>
-    ${isLocked() ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>${state.draft.status === "ingeleverd" ? "Je voorspelling is definitief ingeleverd." : "De deadline is verstreken."} Topscorers kunnen niet meer gewijzigd worden.</p></div>` : (editUnlocked() && (state.draft.status === "ingeleverd" || deadlinePassed()) ? `<div class="lockbar" style="background:#EEF1FF;border-color:#C9D2F7;"><span style="font-size:15px;">🔓</span><p>Een beheerder heeft jouw voorspelling <strong>opengezet om te wijzigen</strong>. Vergeet niet opnieuw definitief in te leveren.</p></div>` : "")}
+    <p style="font-size:14px;color:var(--muted);margin:0 0 22px;max-width:600px;">Punten per doelpunt in de knock-outfase, <strong style="color:var(--green);">afhankelijk van de positie</strong> van je speler: <strong>keeper/verdediger 80</strong> · <strong>middenvelder 40</strong> · <strong>aanvaller 20</strong> punten per goal. Geen punten voor assists.</p>
+    ${isLocked()
+      ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>De deadline is verstreken — topscorers kunnen niet meer gewijzigd worden.</p></div>`
+      : (deadlinePassed() && editUnlocked()
+          ? `<div class="lockbar" style="background:#EEF1FF;border-color:#C9D2F7;"><span style="font-size:15px;">🔓</span><p>Een beheerder heeft jouw voorspelling <strong>opengezet om te wijzigen</strong> na de deadline.</p></div>`
+          : (state.draft.status === "ingeleverd"
+              ? `<div class="lockbar" style="background:#E9F7EE;border-color:#BFE6CE;"><span style="font-size:15px;">✅</span><p>Ingeleverd — je kunt je topscorers nog wijzigen tot de deadline.</p></div>`
+              : ""))}
     <div class="top3-grid">${slots.join("")}</div>
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:0 0 12px;">
       <h3 class="section-title" style="margin:0;">Spelers <span style="color:var(--muted2);font-weight:600;">(${d.topscorers.length}/${TOPSCORER_COUNT} gekozen)</span></h3>
@@ -552,11 +559,21 @@ function renderKlassement() {
 
   const rows = board.map(r => boardRow(r, r.rank)).join("");
 
-  // Final group-phase standings (the start scores for the knock-out pool).
+  // Final group-phase standings — compact: just the group-phase points.
   const groupBoard = board.slice().sort((a, b) => b.g - a.g || a.name.localeCompare(b.name));
-  const groupRows = groupBoard.map((r, i) => boardRow(r, i + 1)).join("");
+  const groupRows = groupBoard.map((r, i) => `
+    <div class="board-row ${r.id === state.session.id ? "me" : ""}">
+      <div class="rk" style="color:${i < 3 ? "var(--gold)" : "#c2bdb0"};">${i + 1}</div>
+      <div class="who">
+        <div class="av" style="background:${colorFor(r.name)};">${initial(r.name)}</div>
+        <span class="nm">${esc(r.name)}</span>
+        ${r.id === state.session.id ? `<span class="tag-me">JIJ</span>` : ""}
+      </div>
+      <div class="tot">${r.g}</div>
+    </div>`).join("");
 
   const headRow = `<div class="board-head"><div>Pos</div><div>Deelnemer</div><div style="text-align:right;">Groepsf.</div><div style="text-align:right;">Knock-out</div><div style="text-align:right;">Topsc.</div><div style="text-align:right;">Totaal</div></div>`;
+  const groupHeadRow = `<div class="board-head"><div>Pos</div><div>Deelnemer</div><div style="text-align:right;">Groepsfase</div></div>`;
 
   return renderShell(`
   <div class="page">
@@ -571,8 +588,8 @@ function renderKlassement() {
 
     ${board.length ? `
     <h3 class="section-title" style="margin:38px 0 14px;">Eindstand groepsfase</h3>
-    <div class="board">
-      ${headRow}
+    <div class="board board-compact">
+      ${groupHeadRow}
       ${groupRows}
     </div>
     <p style="font-size:12.5px;color:var(--muted2);margin:14px 2px 0;">De stand zoals die na de groepsfase vaststond — de startpunten waarmee iedereen aan de knock-outpool begint.</p>
@@ -605,7 +622,7 @@ function renderMijn() {
 
   const champ = d.winner ? tm[d.winner] : null;
   const tops = d.topscorers.map(pid => { const p = pm[pid]; if (!p) return ""; const g = Number(goals[p.id]) || 0;
-    return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;"><div style="width:42px;height:42px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${pflag(p)}</div><div style="flex:1;"><div class="exp" style="font-weight:800;font-size:14.5px;">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted2);">${esc(p.club)}</div></div><div style="text-align:right;"><div class="exp" style="font-weight:900;font-size:18px;color:var(--green);">${g * POINTS_PER_GOAL}</div><div class="mono" style="font-size:9px;color:var(--muted2);">${g} GOALS</div></div></div>`; }).join("") || `<span style="font-size:12.5px;color:var(--muted2);">Nog geen topscorers gekozen.</span>`;
+    return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;"><div style="width:42px;height:42px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${pflag(p)}</div><div style="flex:1;"><div class="exp" style="font-weight:800;font-size:14.5px;">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted2);">${esc(p.club)}</div></div><div style="text-align:right;"><div class="exp" style="font-weight:900;font-size:18px;color:var(--green);">${g * goalPointsForPos(p.pos)}</div><div class="mono" style="font-size:9px;color:var(--muted2);">${g} GOALS · ${goalPointsForPos(p.pos)}/G</div></div></div>`; }).join("") || `<span style="font-size:12.5px;color:var(--muted2);">Nog geen topscorers gekozen.</span>`;
 
   return renderShell(`
   <div class="page">
@@ -668,7 +685,7 @@ function renderReglement() {
     <p style="font-size:14px;color:var(--muted);margin:0 0 30px;">De stand na de groepsfase (t/m zondag 21 juni, inclusief België – Iran) vormt de startstand. Punten uit deze fase blijven staan en tellen volledig mee in het eindklassement.</p>
 
     <div class="reg-card"><div class="reg-head"><div class="reg-num" style="background:var(--blue);">1</div>
-      <div><h3>Voorspellingen knock-outfase</h3><p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#3a3d45;">Vóór de start van de knock-outfase levert iedere deelnemer éénmalig zijn voorspellingen in. Te voorspellen: de 16 teams die de 8e finales halen, de 8 kwartfinalisten, de 4 halve finalisten, de 2 finalisten en de wereldkampioen.</p><p style="margin:0;font-size:13px;color:#A52121;"><strong>Let op:</strong> voorspellingen zijn definitief na inleveren — wijzigingen achteraf zijn niet mogelijk.</p></div>
+      <div><h3>Voorspellingen knock-outfase</h3><p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#3a3d45;">Vóór de start van de knock-outfase levert iedere deelnemer éénmalig zijn voorspellingen in. Te voorspellen: de 16 teams die de 8e finales halen, de 8 kwartfinalisten, de 4 halve finalisten, de 2 finalisten en de wereldkampioen.</p><p style="margin:0;font-size:13px;color:#A52121;"><strong>Let op:</strong> je kunt je voorspelling wijzigen tot de deadline. Daarna telt automatisch je laatste inzending — na de deadline zijn wijzigingen niet meer mogelijk (tenzij een beheerder dit op verzoek openzet).</p></div>
     </div></div>
 
     <div class="reg-card"><div class="reg-head"><div class="reg-num" style="background:var(--blue);">2</div>
@@ -676,7 +693,7 @@ function renderReglement() {
     </div></div>
 
     <div class="reg-card"><div class="reg-head"><div class="reg-num" style="background:var(--green);">3</div>
-      <div><h3>Topscorers</h3><p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#3a3d45;">Iedere deelnemer kiest <strong>3 topscorers</strong>. Je krijgt <strong style="color:var(--green);">25 punten per doelpunt</strong> dat een gekozen speler maakt in de knock-outfase.</p><ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;color:var(--muted);"><li>Alleen doelpunten in de knock-outfase tellen mee</li><li>Geen onderscheid naar positie (verdediger/middenvelder/aanvaller)</li><li>Geen punten voor assists of andere statistieken</li></ul></div>
+      <div><h3>Topscorers</h3><p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#3a3d45;">Iedere deelnemer kiest <strong>3 topscorers</strong>. Je krijgt punten per doelpunt dat een gekozen speler maakt in de knock-outfase, <strong>afhankelijk van zijn positie</strong>:</p><ul style="margin:0 0 10px;padding-left:18px;font-size:13.5px;line-height:1.7;color:var(--muted);"><li><strong style="color:var(--green);">Keeper &amp; verdediger:</strong> 80 punten per doelpunt</li><li><strong style="color:var(--green);">Middenvelder:</strong> 40 punten per doelpunt</li><li><strong style="color:var(--green);">Aanvaller:</strong> 20 punten per doelpunt</li></ul><ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;color:var(--muted);"><li>Alleen doelpunten in de knock-outfase tellen mee</li><li>Geen punten voor assists of andere statistieken</li></ul></div>
     </div></div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;" class="two-col">

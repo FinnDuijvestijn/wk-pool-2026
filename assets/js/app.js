@@ -87,7 +87,7 @@ async function navigate(screen) {
   // auto-save an unsaved draft when leaving a form
   if (state.dirty && (state.screen === "voorspellingen" || state.screen === "topscorers") && !isLocked()) {
     if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
-    try { await savePrediction(state.draft, "concept"); state.dirty = false; await refreshAfterPrediction(); } catch (e) {}
+    try { await savePrediction(state.draft); state.dirty = false; await refreshAfterPrediction(); } catch (e) {}
   }
   if (screen === "admin" && !(state.session && state.session.is_admin)) screen = "dashboard";
   state.screen = screen;
@@ -119,7 +119,7 @@ async function flushAutosave() {
   if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
   if (!state.dirty || isLocked() || !state.draft) return;
   try {
-    await savePrediction(state.draft, "concept");
+    await savePrediction(state.draft);   // preserve status (stays 'ingeleverd' if already final)
     state.dirty = false;
     await refreshAfterPrediction();
     rerender(true);
@@ -156,16 +156,16 @@ function toggleTopscorer(id) {
 }
 async function saveDraft() {
   try {
-    await savePrediction(state.draft, "concept");
+    await savePrediction(state.draft);   // preserve status (stays 'ingeleverd' if already final)
     state.dirty = false;
     await refreshAfterPrediction();
     rerender(true);
-    toast("Concept opgeslagen ✓", "ok");
+    toast(state.draft.status === "ingeleverd" ? "Wijzigingen opgeslagen ✓" : "Concept opgeslagen ✓", "ok");
   } catch (e) { toast("Opslaan mislukt: " + e.message, "err"); }
 }
 async function submitFinal() {
   if (isLocked()) {
-    toast(deadlinePassed() ? "De deadline is verstreken — inleveren kan niet meer." : "Je voorspelling is al ingeleverd.", "err");
+    toast("De deadline is verstreken — inleveren kan niet meer.", "err");
     return;
   }
   const d = state.draft;
@@ -184,7 +184,7 @@ async function submitFinal() {
   if (!koComplete) { toast("Vul eerst alle rondes volledig in (16 / 8 / 4 / 2 / kampioen).", "err"); return; }
 
   const yes = await confirmDialog("Definitief inleveren?",
-    "Na inleveren staan je voorspellingen vast en kun je ze niet meer wijzigen. Doorgaan?", "Ja, inleveren");
+    "Je voorspelling wordt als definitief gemarkeerd. Je kunt hem daarna nog aanpassen tot de deadline — daarna geldt je laatste inzending. Doorgaan?", "Ja, inleveren");
   if (!yes) return;
   try {
     await savePrediction(state.draft, "ingeleverd");
@@ -192,7 +192,7 @@ async function submitFinal() {
     state.dirty = false;
     await refreshAfterPrediction();
     navigate("mijn");
-    toast("Voorspelling ingeleverd! Succes ⚽", "ok");
+    toast("Ingeleverd! Je kunt tot de deadline nog wijzigen ⚽", "ok");
   } catch (e) { toast("Inleveren mislukt: " + e.message, "err"); }
 }
 
@@ -458,7 +458,7 @@ function tickCountdown() {
 // Best-effort save when the user leaves or hides the tab without saving.
 function saveOnLeave() {
   if (state.dirty && !isLocked() && state.draft) {
-    try { savePrediction(state.draft, "concept"); state.dirty = false; } catch (e) {}
+    try { savePrediction(state.draft); state.dirty = false; } catch (e) {}
   }
 }
 

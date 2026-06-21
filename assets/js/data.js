@@ -13,7 +13,13 @@ const KO_STAGES = [
   { key: "winner",    label: "Wereldkampioen",          short: "Kampioen",     count: 1,  points: 400, color: "#E22B2B" }
 ];
 
-const POINTS_PER_GOAL = 25;     // topscorers: 25 punten per doelpunt in de knock-outfase
+// Topscorers: punten per doelpunt in de knock-outfase, afhankelijk van de
+// positie van de speler (defensieve doelpunten zijn zeldzamer → meer waard).
+//   K = Keeper, V = Verdediger, M = Middenvelder, A = Aanvaller
+const GOAL_POINTS_BY_POS = { K: 80, V: 80, M: 40, A: 20 };
+function goalPointsForPos(pos) {
+  return GOAL_POINTS_BY_POS[pos] != null ? GOAL_POINTS_BY_POS[pos] : 20;
+}
 const TOPSCORER_COUNT = 3;
 
 // Avatar palette (cycled per participant)
