@@ -8,6 +8,11 @@ const state = {
   loading: true,
   authMode: "login",
   authError: "",
+  claimable: [],            // pre-created accounts you can claim on register
+  claimUsername: "",        // "" = none picked, "__new__" = brand-new account
+  editUnlocked: false,      // admin gave me rights to edit after submitting
+  tsFilter: { scope: "popular", team: "", pos: "", q: "" },   // topscorer pick page
+  goalFilter: { scope: "popular", team: "", pos: "", q: "" }, // admin goals page
   settings: null,
   teams: [],
   players: [],
@@ -57,7 +62,7 @@ function recompute() {
 async function reloadAll() {
   state.settings = await loadSettings();
   state.teams = state.settings.teams;
-  state.players = state.settings.players;
+  state.players = buildPlayerPool(state.settings.players);
   state.users = await loadAllUsers();
   state.predictions = await loadAllPredictions();
 
@@ -69,6 +74,7 @@ async function reloadAll() {
     return;
   }
   state.session.is_admin = meUser.is_admin;
+  state.editUnlocked = !!meUser.edit_unlocked;
   setSession(state.session);
 
   state.draft = await loadMyPrediction(state.session.id);
@@ -80,6 +86,7 @@ async function reloadAll() {
 async function navigate(screen) {
   // auto-save an unsaved draft when leaving a form
   if (state.dirty && (state.screen === "voorspellingen" || state.screen === "topscorers") && !isLocked()) {
+    if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
     try { await savePrediction(state.draft, "concept"); state.dirty = false; await refreshAfterPrediction(); } catch (e) {}
   }
   if (screen === "admin" && !(state.session && state.session.is_admin)) screen = "dashboard";
@@ -101,6 +108,24 @@ function sanitizeDraft() {
   d.finalists = d.finalists.filter(c => d.semi.includes(c));
   if (d.winner && !d.finalists.includes(d.winner)) d.winner = null;
 }
+/* Auto-save the working concept so nobody loses picks by forgetting to
+   click "Concept opslaan" or by closing/leaving the page. */
+let autosaveTimer = null;
+function scheduleAutosave() {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => { autosaveTimer = null; flushAutosave(); }, 900);
+}
+async function flushAutosave() {
+  if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+  if (!state.dirty || isLocked() || !state.draft) return;
+  try {
+    await savePrediction(state.draft, "concept");
+    state.dirty = false;
+    await refreshAfterPrediction();
+    rerender(true);
+  } catch (e) { /* keep dirty; will retry on next change / leave */ }
+}
+
 function toggleStage(stage, code) {
   if (isLocked()) return;
   const d = state.draft;
@@ -116,6 +141,7 @@ function toggleStage(stage, code) {
   }
   sanitizeDraft();
   state.dirty = true;
+  scheduleAutosave();
   rerender(true);
 }
 function toggleTopscorer(id) {
@@ -125,6 +151,7 @@ function toggleTopscorer(id) {
   if (i >= 0) arr.splice(i, 1);
   else if (arr.length < TOPSCORER_COUNT) arr.push(id);
   state.dirty = true;
+  scheduleAutosave();
   rerender(true);
 }
 async function saveDraft() {
@@ -137,10 +164,25 @@ async function saveDraft() {
   } catch (e) { toast("Opslaan mislukt: " + e.message, "err"); }
 }
 async function submitFinal() {
+  if (isLocked()) {
+    toast(deadlinePassed() ? "De deadline is verstreken — inleveren kan niet meer." : "Je voorspelling is al ingeleverd.", "err");
+    return;
+  }
   const d = state.draft;
-  const ok = d.sel16.length === 16 && d.quarter.length === 8 && d.semi.length === 4 &&
-    d.finalists.length === 2 && d.winner && d.topscorers.length === TOPSCORER_COUNT;
-  if (!ok) { toast("Vul eerst alle rondes (16/8/4/2/1) én 3 topscorers in.", "err"); return; }
+
+  // Topscorers must be filled in first — guide the user to that page.
+  if (d.topscorers.length < TOPSCORER_COUNT) {
+    const go = await confirmDialog("Eerst je topscorers kiezen",
+      `Voordat je definitief kunt inleveren, moet je nog je ${TOPSCORER_COUNT} topscorers invullen. Wil je daar nu naartoe?`,
+      "Naar topscorers →");
+    if (go) navigate("topscorers");
+    return;
+  }
+
+  const koComplete = d.sel16.length === 16 && d.quarter.length === 8 &&
+    d.semi.length === 4 && d.finalists.length === 2 && d.winner;
+  if (!koComplete) { toast("Vul eerst alle rondes volledig in (16 / 8 / 4 / 2 / kampioen).", "err"); return; }
+
   const yes = await confirmDialog("Definitief inleveren?",
     "Na inleveren staan je voorspellingen vast en kun je ze niet meer wijzigen. Doorgaan?", "Ja, inleveren");
   if (!yes) return;
@@ -158,21 +200,29 @@ async function submitFinal() {
    AUTH
    ============================================================ */
 async function doAuth() {
-  const username = (document.getElementById("au-username") || {}).value || "";
   const password = (document.getElementById("au-password") || {}).value || "";
   state.authError = "";
+  const claimingExisting = state.authMode === "register" && state.claimUsername && state.claimUsername !== "__new__";
   try {
     let user;
     if (state.authMode === "register") {
       const confirm = (document.getElementById("au-confirm") || {}).value || "";
       if (password !== confirm) { state.authError = "Wachtwoorden komen niet overeen."; rerender(); return; }
-      user = await registerUser(username, password);
-      toast(user.is_admin ? "Account aangemaakt — jij bent beheerder! 👑" : "Account aangemaakt ✓", "ok");
+      if (claimingExisting) {
+        user = await claimAccount(state.claimUsername, password);
+        toast("Welkom terug! Je account is geactiveerd ✓", "ok");
+      } else {
+        const username = (document.getElementById("au-username") || {}).value || "";
+        user = await registerUser(username, password);
+        toast(user.is_admin ? "Account aangemaakt — jij bent beheerder! 👑" : "Account aangemaakt ✓", "ok");
+      }
     } else {
+      const username = (document.getElementById("au-username") || {}).value || "";
       user = await loginUser(username, password);
     }
     state.session = { id: user.id, username: user.username, is_admin: user.is_admin };
     setSession(state.session);
+    state.claimUsername = "";
     state.loading = true; rerender();
     await reloadAll();
     state.loading = false;
@@ -180,13 +230,16 @@ async function doAuth() {
     rerender();
   } catch (e) {
     state.authError = e.message || "Er ging iets mis.";
+    // a claim race may have removed our pick from the list — refresh it
+    if (claimingExisting) { try { state.claimable = await loadClaimableAccounts(); } catch (_) {} }
     rerender();
   }
 }
 async function logout() {
   clearSession();
   state.session = null; state.draft = null; state.dirty = false;
-  state.authMode = "login"; state.authError = "";
+  state.authMode = "login"; state.authError = ""; state.claimUsername = ""; state.editUnlocked = false;
+  try { state.claimable = await loadClaimableAccounts(); } catch (_) {}
   rerender();
 }
 
@@ -208,6 +261,17 @@ async function adminTogglePaid(id) {
   const u = state.users.find(x => x.id === id); if (!u) return;
   try { await updateUser(id, { paid: !u.paid }); u.paid = !u.paid; rerender(true); }
   catch (e) { toast("Mislukt: " + e.message, "err"); }
+}
+async function adminToggleEditUnlock(id) {
+  const u = state.users.find(x => x.id === id); if (!u) return;
+  const next = !u.edit_unlocked;
+  try {
+    await updateUser(id, { edit_unlocked: next });
+    u.edit_unlocked = next;
+    if (id === state.session.id) state.editUnlocked = next;
+    rerender(true);
+    toast(next ? `${u.username} mag z'n voorspelling weer wijzigen.` : `Wijzigen voor ${u.username} weer vergrendeld.`, "ok");
+  } catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 async function adminDelete(id, name) {
   if (id === state.session.id) { toast("Je kunt je eigen account hier niet verwijderen.", "err"); return; }
@@ -265,20 +329,33 @@ async function adminSaveResults() {
   } catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 async function adminAddPlayer() {
-  const name = (document.getElementById("np-name") || {}).value.trim();
-  const cc = ((document.getElementById("np-cc") || {}).value || "").trim().toLowerCase();
-  const club = (document.getElementById("np-club") || {}).value.trim();
+  const name = ((document.getElementById("np-name") || {}).value || "").trim();
+  const teamCode = ((document.getElementById("np-team") || {}).value || "").trim();
+  const pos = ((document.getElementById("np-pos") || {}).value || "A").trim();
+  const club = ((document.getElementById("np-club") || {}).value || "").trim();
   if (!name) { toast("Vul een spelersnaam in.", "err"); return; }
+  if (!teamCode) { toast("Kies een land.", "err"); return; }
+  const team = (state.teams || []).find(t => t.code === teamCode);
+  if (!team) { toast("Onbekend land.", "err"); return; }
   const id = slugify(name);
   if (state.players.some(p => p.id === id)) { toast("Die speler bestaat al.", "err"); return; }
-  state.players.push({ id, name, cc, club });
-  try { await saveSettings({ players: state.players }); state.settings = await loadSettings(); state.players = state.settings.players; rerender(); toast("Speler toegevoegd.", "ok"); }
-  catch (e) { toast("Mislukt: " + e.message, "err"); }
+  const custom = (state.settings.players || []).slice();
+  custom.push({ id, name, club, cc: team.cc, country: team.name, team: team.code, pos, posLabel: POS_LABEL[pos] || "Aanvaller" });
+  try {
+    await saveSettings({ players: custom });
+    state.settings = await loadSettings();
+    state.players = buildPlayerPool(state.settings.players);
+    rerender(); toast("Speler toegevoegd.", "ok");
+  } catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 async function adminDelPlayer(id) {
-  state.players = state.players.filter(p => p.id !== id);
-  try { await saveSettings({ players: state.players }); rerender(true); }
-  catch (e) { toast("Mislukt: " + e.message, "err"); }
+  const custom = (state.settings.players || []).filter(p => p.id !== id);
+  try {
+    await saveSettings({ players: custom });
+    state.settings.players = custom;
+    state.players = buildPlayerPool(custom);
+    rerender(true);
+  } catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 async function adminAddTeam() {
   const code = ((document.getElementById("nt-code") || {}).value || "").trim().toUpperCase();
@@ -296,6 +373,19 @@ async function adminDelTeam(code) {
   catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 
+/* ---------- player filter bar (topscorers + admin goals) ---------- */
+function setPlayerFilter(which, field, value) {
+  const f = which === "goal" ? state.goalFilter : state.tsFilter;
+  if (field === "scope") { f.scope = value; }
+  else { f.scope = "all"; f[field] = value; }   // touching team/pos/q implies "all"
+  rerender(true);
+  // keep focus in the search box after a re-render
+  if (field === "q") {
+    const el = document.getElementById(which === "goal" ? "goal-q" : "ts-q");
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+}
+
 /* ============================================================
    EVENT DELEGATION
    ============================================================ */
@@ -311,10 +401,12 @@ function onClick(e) {
     case "nav": navigate(d.screen); break;
     case "toggle": toggleStage(d.stage, d.code); break;
     case "topscorer": toggleTopscorer(d.id); break;
+    case "pf-scope": setPlayerFilter(d.which, "scope", d.scope); break;
     case "savedraft": saveDraft(); break;
     case "submitfinal": submitFinal(); break;
     case "admin-role": adminToggleRole(d.id); break;
     case "admin-paid": adminTogglePaid(d.id); break;
+    case "admin-editunlock": adminToggleEditUnlock(d.id); break;
     case "admin-delete": adminDelete(d.id, d.name); break;
     case "admin-deadline": adminSaveDeadline(); break;
     case "admin-prizes": adminSavePrizes(); break;
@@ -334,6 +426,13 @@ function onChange(e) {
   if (!el) return;
   if (el.dataset.action === "admin-gp") adminSetGroupPoints(el.dataset.id, el.value);
   else if (el.dataset.action === "admin-goal") adminSetGoal(el.dataset.id, el.value);
+  else if (el.dataset.action === "claimselect") { state.claimUsername = el.value; state.authError = ""; rerender(); }
+  else if (el.dataset.action === "pf-team") setPlayerFilter(el.dataset.which, "team", el.value);
+  else if (el.dataset.action === "pf-pos") setPlayerFilter(el.dataset.which, "pos", el.value);
+}
+function onInput(e) {
+  const el = e.target.closest("[data-action='pf-q']");
+  if (el) setPlayerFilter(el.dataset.which, "q", el.value);
 }
 function onKeydown(e) {
   if (e.key === "Enter" && !state.session && (e.target.id === "au-password" || e.target.id === "au-confirm" || e.target.id === "au-username")) {
@@ -356,10 +455,20 @@ function tickCountdown() {
 /* ============================================================
    INIT
    ============================================================ */
+// Best-effort save when the user leaves or hides the tab without saving.
+function saveOnLeave() {
+  if (state.dirty && !isLocked() && state.draft) {
+    try { savePrediction(state.draft, "concept"); state.dirty = false; } catch (e) {}
+  }
+}
+
 async function boot() {
   document.addEventListener("click", onClick);
   document.addEventListener("change", onChange);
+  document.addEventListener("input", onInput);
   document.addEventListener("keydown", onKeydown);
+  window.addEventListener("pagehide", saveOnLeave);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveOnLeave(); });
   setInterval(tickCountdown, 1000);
 
   if (!initDb()) { state.loading = false; renderApp(); return; }
@@ -379,6 +488,7 @@ async function boot() {
     }
   } else {
     state.loading = false;
+    try { state.claimable = await loadClaimableAccounts(); } catch (e) {}
     renderApp();
   }
 }

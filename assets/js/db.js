@@ -37,14 +37,50 @@ function setSession(s) { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
 function clearSession() { localStorage.removeItem(SESSION_KEY); }
 
 /* ---------- auth ---------- */
+// Accounts that have been pre-created (claimed=false) but not yet registered.
+// These are offered in the register dropdown with their group-phase total.
+async function loadClaimableAccounts() {
+  const { data, error } = await sb.from("users")
+    .select("id, username, group_points")
+    .eq("claimed", false)
+    .order("group_points", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// Claim a pre-created account: set its password and mark it registered.
+async function claimAccount(username, password) {
+  username = (username || "").trim();
+  if ((password || "").length < 4) throw new Error("Wachtwoord moet minstens 4 tekens zijn.");
+
+  const { data: u, error: e1 } = await sb.from("users")
+    .select("*").eq("username", username).maybeSingle();
+  if (e1) throw e1;
+  if (!u) throw new Error("Dit account bestaat niet meer.");
+  if (u.claimed) throw new Error("Dit account is intussen al geclaimd. Kies een ander of maak een nieuw account.");
+
+  const password_hash = await hashPassword(password);
+  const { data, error } = await sb.from("users")
+    .update({ password_hash, claimed: true }).eq("id", u.id).eq("claimed", false)
+    .select().single();
+  if (error) throw new Error("Dit account is intussen al geclaimd. Kies een ander of maak een nieuw account.");
+
+  await sb.from("predictions").insert({ user_id: data.id }).then(() => {}, () => {});
+  return data;
+}
+
 async function registerUser(username, password) {
   username = (username || "").trim();
   if (username.length < 2) throw new Error("Gebruikersnaam moet minstens 2 tekens zijn.");
   if ((password || "").length < 4) throw new Error("Wachtwoord moet minstens 4 tekens zijn.");
 
-  const { data: existing, error: e1 } = await sb.from("users").select("id").eq("username", username);
+  const { data: existing, error: e1 } = await sb.from("users").select("id, claimed").eq("username", username);
   if (e1) throw e1;
-  if (existing && existing.length) throw new Error("Die gebruikersnaam bestaat al. Kies een andere.");
+  if (existing && existing.length) {
+    if (existing[0].claimed === false)
+      throw new Error("Die naam staat al in de poule-lijst — kies hem in het uitklapmenu om je account te claimen.");
+    throw new Error("Die gebruikersnaam bestaat al. Kies een andere.");
+  }
 
   const { count, error: e2 } = await sb.from("users").select("id", { count: "exact", head: true });
   if (e2) throw e2;
@@ -52,7 +88,7 @@ async function registerUser(username, password) {
 
   const password_hash = await hashPassword(password);
   const { data, error } = await sb.from("users")
-    .insert({ username, password_hash, is_admin: isFirst })
+    .insert({ username, password_hash, is_admin: isFirst, claimed: true })
     .select().single();
   if (error) throw error;
 
@@ -66,6 +102,8 @@ async function loginUser(username, password) {
   const { data, error } = await sb.from("users").select("*").eq("username", username).maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Gebruiker niet gevonden.");
+  if (data.claimed === false || !data.password_hash)
+    throw new Error("Dit account is nog niet geregistreerd. Kies je naam bij 'Registreren' en stel een wachtwoord in.");
   const password_hash = await hashPassword(password);
   if (password_hash !== data.password_hash) throw new Error("Onjuist wachtwoord.");
   return data;
@@ -81,7 +119,8 @@ async function ensureSettings() {
       entry_fee: 10,
       prize_pct: [70, 20, 10],
       teams: DEFAULT_TEAMS,
-      players: DEFAULT_PLAYERS,
+      players: [],   // topscorer pool comes from the full WC database (players-wc.js);
+                     // this holds only extra players an admin adds by hand
       results: { sel16: [], quarter: [], semi: [], finalists: [], winner: null, goals: {} }
     });
   }
@@ -94,7 +133,7 @@ async function loadSettings() {
   data.results = data.results || { sel16: [], quarter: [], semi: [], finalists: [], winner: null, goals: {} };
   data.results.goals = data.results.goals || {};
   if (!data.teams || !data.teams.length) data.teams = DEFAULT_TEAMS;
-  if (!data.players || !data.players.length) data.players = DEFAULT_PLAYERS;
+  data.players = data.players || [];   // extra hand-added players only; full pool = WC_PLAYERS
   return data;
 }
 
@@ -190,6 +229,7 @@ function buildLeaderboard(users, predictions, settings) {
     const g = Number(u.group_points) || 0;
     return {
       id: u.id, name: u.username, is_admin: u.is_admin, paid: u.paid,
+      claimed: u.claimed !== false, edit_unlocked: !!u.edit_unlocked,
       status: pred.status || "concept",
       g, k: ko.total, t: ts, total: g + ko.total + ts
     };

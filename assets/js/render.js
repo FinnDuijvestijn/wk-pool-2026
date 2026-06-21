@@ -54,7 +54,17 @@ function deadlinePassed() {
   const dl = state.settings && state.settings.deadline;
   return dl ? Date.now() > new Date(dl).getTime() : false;
 }
-function isLocked() { return deadlinePassed() || (state.draft && state.draft.status === "ingeleverd"); }
+// Admin granted me the right to edit again after submitting / after the deadline.
+function editUnlocked() { return !!state.editUnlocked; }
+function isLocked() {
+  if (editUnlocked()) return false;
+  return deadlinePassed() || (state.draft && state.draft.status === "ingeleverd");
+}
+// A prediction counts as final once submitted OR once the deadline passes
+// (forgot to submit → latest concept becomes the final entry).
+function effectiveSubmitted() {
+  return (state.draft && state.draft.status === "ingeleverd") || deadlinePassed();
+}
 function participants() { return (state.users || []).length; }
 function entryFee() { return (state.settings && state.settings.entry_fee) || 10; }
 function pot() { return participants() * entryFee(); }
@@ -68,40 +78,68 @@ function prizes() {
    ============================================================ */
 function renderAuth() {
   const isLogin = state.authMode === "login";
+  const pick = state.claimUsername;          // "", "__new__", or a name
+  const claiming = !isLogin && pick && pick !== "__new__";
+  const newAccount = !isLogin && pick === "__new__";
+
+  const claimOptions = (state.claimable || []).map(a =>
+    `<option value="${esc(a.username)}" ${pick === a.username ? "selected" : ""}>${esc(a.username)} · ${Number(a.group_points) || 0} pt</option>`
+  ).join("");
+
+  const registerBody = `
+    <label class="field-label">Wie ben je in de poule?</label>
+    <select id="au-claim" class="field" data-action="claimselect">
+      <option value="" ${pick === "" ? "selected" : ""}>— Kies je naam uit de poule —</option>
+      ${claimOptions}
+      <option value="__new__" ${pick === "__new__" ? "selected" : ""}>➕ Mijn naam staat er niet bij — nieuw account</option>
+    </select>
+    ${claiming ? `<div class="claim-hint">Je activeert het account van <strong>${esc(pick)}</strong>. Je punten uit de groepsfase staan al klaar — stel alleen nog een wachtwoord in.</div>` : ""}
+    ${newAccount ? `<label class="field-label">Gebruikersnaam</label>
+      <input id="au-username" class="field" type="text" placeholder="bijv. daan_dsp" autocomplete="username">` : ""}
+    ${(claiming || newAccount) ? `
+      <label class="field-label">Wachtwoord</label>
+      <input id="au-password" class="field" type="password" placeholder="••••••••" autocomplete="new-password">
+      <label class="field-label">Bevestig wachtwoord</label>
+      <input id="au-confirm" class="field" type="password" placeholder="••••••••" autocomplete="new-password">
+      <button type="button" class="btn btn-primary btn-block" data-action="authsubmit" style="margin-top:4px;">${claiming ? "Account activeren" : "Account aanmaken"}</button>
+    ` : `<div class="note"><span style="font-size:16px;flex:none;">👉</span><p>Kies hierboven je naam uit de poule om je account te activeren — of maak een nieuw account aan.</p></div>`}`;
+
+  const loginBody = `
+    <label class="field-label">Gebruikersnaam</label>
+    <input id="au-username" class="field" type="text" placeholder="bijv. daan_dsp" autocomplete="username">
+    <label class="field-label">Wachtwoord</label>
+    <input id="au-password" class="field" type="password" placeholder="••••••••" autocomplete="current-password">
+    <button type="button" class="btn btn-primary btn-block" data-action="authsubmit" style="margin-top:4px;">Inloggen</button>
+    <div class="note">
+      <span style="font-size:16px;flex:none;">🔒</span>
+      <p>Geen e-mail nodig — verzin zelf een gebruikersnaam en wachtwoord. Zo blijven inzendingen aan je naam gekoppeld zonder gedoe.</p>
+    </div>`;
+
   return `
   <div class="auth-wrap">
     <div class="auth-hero">
       <div class="brandline">
         <img src="${LOGO}" alt="DSP">
-        <span class="brandname">DSP&nbsp;GROEP</span>
+        <span class="brandname">DSP-GROEP</span>
       </div>
       <div class="hero-rings"><div class="ring-badge"><div class="cup">🏆</div><div class="yr">26</div></div></div>
       <div class="hero-fade"></div>
       <div class="hero-copy">
-        <div class="kicker">WK Pool 2026 · Knock-outfase</div>
+        <div class="kicker">Grote DSP WK POOL 2026 · Knock-outfase</div>
         <h1>Voorspel de<br>knock-out.<br>Pak de titel.</h1>
-        <p>De interne wereldkampioenschap-pool van DSP Groep. Voorspel wie de laatste 16 haalt, kies je topscorers en klim naar de top van het klassement.</p>
+        <p>De interne wereldkampioenschap-pool van DSP-Groep. Voorspel wie de laatste 16 haalt, kies je topscorers en klim naar de top van het klassement.</p>
       </div>
     </div>
     <div class="auth-panel">
       <div class="auth-card">
         <div class="eyebrow">Welkom bij de pool</div>
-        <h2>${isLogin ? "Log in op de pool" : "Maak je account"}</h2>
+        <h2>${isLogin ? "Log in op de pool" : "Activeer je account"}</h2>
         <div class="auth-tabs">
           <button type="button" class="auth-tab ${isLogin ? "active" : ""}" data-action="authtab" data-mode="login">Inloggen</button>
           <button type="button" class="auth-tab ${!isLogin ? "active" : ""}" data-action="authtab" data-mode="register">Registreren</button>
         </div>
         ${state.authError ? `<div class="auth-error">${esc(state.authError)}</div>` : ""}
-        <label class="field-label">Gebruikersnaam</label>
-        <input id="au-username" class="field" type="text" placeholder="bijv. daan_dsp" autocomplete="username">
-        <label class="field-label">Wachtwoord</label>
-        <input id="au-password" class="field" type="password" placeholder="••••••••" autocomplete="${isLogin ? "current-password" : "new-password"}">
-        ${!isLogin ? `<label class="field-label">Bevestig wachtwoord</label><input id="au-confirm" class="field" type="password" placeholder="••••••••" autocomplete="new-password">` : ""}
-        <button type="button" class="btn btn-primary btn-block" data-action="authsubmit" style="margin-top:4px;">${isLogin ? "Inloggen" : "Account aanmaken"}</button>
-        <div class="note">
-          <span style="font-size:16px;flex:none;">🔒</span>
-          <p>Geen e-mail nodig — verzin zelf een gebruikersnaam en wachtwoord. Zo blijven inzendingen aan je naam gekoppeld zonder gedoe. <strong style="color:var(--ink);">De eerste deelnemer wordt automatisch beheerder.</strong></p>
-        </div>
+        ${isLogin ? loginBody : registerBody}
       </div>
     </div>
   </div>`;
@@ -134,11 +172,11 @@ function renderShell(inner) {
   return `
   <div class="topbar">
     <div class="topbar-inner">
-      <div class="brand" data-action="nav" data-screen="dashboard">
+      <div class="brand" data-action="nav" data-screen="dashboard" title="Grote DSP WK POOL 2026">
         <img src="${LOGO}" alt="DSP">
         <div>
-          <div class="b1">WK&nbsp;POOL&nbsp;<span>'26</span></div>
-          <div class="b2">DSP Groep · Knock-out</div>
+          <div class="b1">GD<span>WKP</span>26</div>
+          <div class="b2">DSP-Groep · Knock-out</div>
         </div>
       </div>
       <nav class="nav">${navItems()}</nav>
@@ -152,7 +190,7 @@ function renderShell(inner) {
   </div>
   ${inner}
   <div class="foot"><div class="foot-inner">
-    <div style="display:flex;align-items:center;gap:10px;"><img src="${LOGO}" alt="DSP"><span style="font-size:12.5px;color:var(--muted2);">WK Pool 2026 · een interne pool van DSP Groep</span></div>
+    <div style="display:flex;align-items:center;gap:10px;"><img src="${LOGO}" alt="DSP"><span style="font-size:12.5px;color:var(--muted2);">Grote DSP WK POOL 2026 · een interne pool van DSP-Groep</span></div>
     <span class="mono" style="font-size:11px;color:#b8b3a6;">GDWKP26</span>
   </div></div>`;
 }
@@ -165,8 +203,9 @@ function renderDashboard() {
   const locked = isLocked();
   const submitted = state.draft && state.draft.status === "ingeleverd";
   let statusColor, statusText, statusSub;
-  if (submitted) { statusColor = "var(--green)"; statusText = "Ingeleverd ✓"; statusSub = "Je voorspelling staat vast"; }
-  else if (locked) { statusColor = "var(--red)"; statusText = "Niet ingeleverd"; statusSub = "De deadline is verstreken"; }
+  if (editUnlocked() && submitted) { statusColor = "var(--blue)"; statusText = "Bewerken open 🔓"; statusSub = "Een beheerder zette je voorspelling open"; }
+  else if (submitted) { statusColor = "var(--green)"; statusText = "Ingeleverd ✓"; statusSub = "Je voorspelling staat vast"; }
+  else if (deadlinePassed()) { statusColor = "var(--green)"; statusText = "Definitief ✓"; statusSub = "Je laatste concept telt als inzending"; }
   else { statusColor = "var(--orange)"; statusText = "Concept opgeslagen"; statusSub = "Nog niet definitief ingeleverd"; }
 
   const top5 = (state.leaderboard || []).slice(0, 5).map(r => `
@@ -309,11 +348,13 @@ function renderVoorspellingen() {
 
   const allComplete = d.sel16.length === 16 && d.quarter.length === 8 && d.semi.length === 4 && d.finalists.length === 2 && d.winner && d.topscorers.length === TOPSCORER_COUNT;
 
-  const lockBanner = submitted
-    ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>Je voorspelling is <strong>definitief ingeleverd</strong> en kan niet meer gewijzigd worden.</p></div>`
-    : deadlinePassed()
-      ? `<div class="lockbar"><span style="font-size:15px;">⏰</span><p>De deadline is verstreken — voorspellingen zijn vergrendeld.</p></div>`
-      : "";
+  const lockBanner = (editUnlocked() && (submitted || deadlinePassed()))
+    ? `<div class="lockbar" style="background:#EEF1FF;border-color:#C9D2F7;"><span style="font-size:15px;">🔓</span><p>Een beheerder heeft jouw voorspelling <strong>opengezet om te wijzigen</strong>. Pas hem aan en lever opnieuw definitief in.</p></div>`
+    : submitted
+      ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>Je voorspelling is <strong>definitief ingeleverd</strong> en kan niet meer gewijzigd worden.</p></div>`
+      : deadlinePassed()
+        ? `<div class="lockbar"><span style="font-size:15px;">⏰</span><p>De deadline is verstreken — je laatste concept geldt als je definitieve inzending.</p></div>`
+        : "";
 
   return renderShell(`
   <div class="page">
@@ -374,14 +415,25 @@ function renderVoorspellingen() {
     </div>
 
     ${locked ? "" : `
+    ${d.topscorers.length < TOPSCORER_COUNT ? `
+    <button type="button" class="topscorer-cta" data-action="nav" data-screen="topscorers">
+      <span class="ic">⚽</span>
+      <span class="tx"><span class="t1">Stap 2 — kies je ${TOPSCORER_COUNT} topscorers</span><span class="t2">Verplicht om in te leveren · 25 punten per doelpunt · (${d.topscorers.length}/${TOPSCORER_COUNT} gekozen)</span></span>
+      <span class="ar">→</span>
+    </button>` : `
+    <div class="topscorer-cta done" data-action="nav" data-screen="topscorers">
+      <span class="ic">✓</span>
+      <span class="tx"><span class="t1">Je ${TOPSCORER_COUNT} topscorers zijn gekozen</span><span class="t2">Klik om ze nog te wijzigen</span></span>
+      <span class="ar">→</span>
+    </div>`}
     <div class="submitbar">
-      <div style="font-size:13px;color:var(--muted);">Klaar met je teams? Vergeet daarna je <button type="button" class="btn-ghost btn" style="padding:0;color:var(--green);font-weight:700;font-size:13px;text-decoration:underline;" data-action="nav" data-screen="topscorers">3 topscorers</button> niet.</div>
+      <div style="font-size:13px;color:var(--muted);">Je voortgang wordt automatisch als concept bewaard. Klaar? Lever definitief in.</div>
       <div style="display:flex;gap:10px;">
         <button type="button" class="btn btn-outline" data-action="savedraft">Concept opslaan</button>
-        <button type="button" class="btn btn-primary" data-action="submitfinal" ${allComplete ? "" : "disabled title='Vul eerst alle rondes en 3 topscorers in'"}>Definitief inleveren →</button>
+        <button type="button" class="btn btn-primary" data-action="submitfinal">Definitief inleveren →</button>
       </div>
     </div>
-    ${allComplete ? "" : `<p style="font-size:12.5px;color:var(--muted2);margin:12px 2px 0;">Je kunt pas definitief inleveren als alle rondes (16/8/4/2/1) én 3 topscorers zijn ingevuld.</p>`}
+    ${allComplete ? "" : `<p style="font-size:12.5px;color:var(--muted2);margin:12px 2px 0;">Je kunt pas definitief inleveren als alle rondes (16/8/4/2/1) én ${TOPSCORER_COUNT} topscorers zijn ingevuld.</p>`}
     `}
   </div>`);
 }
@@ -389,6 +441,27 @@ function renderVoorspellingen() {
 /* ============================================================
    TOPSCORERS
    ============================================================ */
+// Shared filter bar for the pick page ("ts") and the admin goals page ("goal").
+function renderPlayerFilters(which, f) {
+  const teamOpts = (state.teams || []).slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(t => `<option value="${t.code}" ${f.team === t.code ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+  const posOpts = [["K", "Keepers"], ["V", "Verdedigers"], ["M", "Middenvelders"], ["A", "Aanvallers"]]
+    .map(([k, l]) => `<option value="${k}" ${f.pos === k ? "selected" : ""}>${l}</option>`).join("");
+  return `
+  <div class="pfbar">
+    <div class="pf-seg">
+      <button type="button" class="pf-tab ${f.scope === "popular" ? "active" : ""}" data-action="pf-scope" data-which="${which}" data-scope="popular">⭐ Populair</button>
+      <button type="button" class="pf-tab ${f.scope === "all" ? "active" : ""}" data-action="pf-scope" data-which="${which}" data-scope="all">Alle spelers</button>
+    </div>
+    ${f.scope === "all" ? `
+    <select class="pf-sel" data-action="pf-team" data-which="${which}"><option value="">🌍 Alle landen</option>${teamOpts}</select>
+    <select class="pf-sel" data-action="pf-pos" data-which="${which}"><option value="">Alle posities</option>${posOpts}</select>
+    <input id="${which}-q" class="pf-q" type="text" placeholder="Zoek op naam of club…" value="${esc(f.q || "")}" data-action="pf-q" data-which="${which}" autocomplete="off">
+    ` : ``}
+  </div>`;
+}
+
 function renderTopscorers() {
   const d = state.draft;
   const pm = playerMap();
@@ -410,32 +483,37 @@ function renderTopscorers() {
     }
   }
 
-  const grid = (state.players || []).map(p => {
+  const filtered = filterPlayerPool(state.players, state.tsFilter);
+  const PCAP = 150;
+  const moreNote = filtered.length > PCAP ? `<div class="pf-empty" style="margin-top:12px;">Nog ${filtered.length - PCAP} spelers — verfijn met land, positie of zoek.</div>` : "";
+  const grid = filtered.slice(0, PCAP).map(p => {
     const chosen = d.topscorers.includes(p.id);
     const full = d.topscorers.length >= TOPSCORER_COUNT && !chosen;
     const g = Number(goals[p.id]) || 0;
+    const sub = [p.club, p.posLabel].filter(Boolean).join(" · ");
     return `<button type="button" class="player-card ${chosen ? "chosen" : ""}" ${locked || full ? "" : `data-action="topscorer" data-id="${p.id}"`} ${full ? "style='opacity:.5;cursor:not-allowed;'" : ""}>
       <div class="row"><div class="av">${pflag(p)}</div>
-        <div style="flex:1;min-width:0;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc(p.club)}</div></div>
+        <div style="flex:1;min-width:0;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc(sub)}</div></div>
       </div>
       <div class="meta"><span class="mt">${g} goals · ${g * POINTS_PER_GOAL} pt</span>
         <span class="badge ${chosen ? "on" : ""} ${full ? "disabled" : ""}">${chosen ? "✓ Gekozen" : "+ Kies"}</span>
       </div>
     </button>`;
-  }).join("");
+  }).join("") || `<div class="pf-empty">Geen spelers gevonden — pas je filter aan.</div>`;
 
   return renderShell(`
   <div class="page">
     <div class="eyebrow">Stap 2 van 2 · Spelers</div>
     <h1 class="display" style="font-size:30px;margin-bottom:6px;">Kies je 3 topscorers</h1>
-    <p style="font-size:14px;color:var(--muted);margin:0 0 26px;max-width:560px;"><strong style="color:var(--green);">25 punten per doelpunt</strong> dat je speler maakt in de knock-outfase. Geen onderscheid naar positie, geen punten voor assists.</p>
-    ${isLocked() ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>${state.draft.status === "ingeleverd" ? "Je voorspelling is definitief ingeleverd." : "De deadline is verstreken."} Topscorers kunnen niet meer gewijzigd worden.</p></div>` : ""}
+    <p style="font-size:14px;color:var(--muted);margin:0 0 22px;max-width:560px;"><strong style="color:var(--green);">25 punten per doelpunt</strong> dat je speler maakt in de knock-outfase. Geen onderscheid naar positie, geen punten voor assists.</p>
+    ${isLocked() ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>${state.draft.status === "ingeleverd" ? "Je voorspelling is definitief ingeleverd." : "De deadline is verstreken."} Topscorers kunnen niet meer gewijzigd worden.</p></div>` : (editUnlocked() && (state.draft.status === "ingeleverd" || deadlinePassed()) ? `<div class="lockbar" style="background:#EEF1FF;border-color:#C9D2F7;"><span style="font-size:15px;">🔓</span><p>Een beheerder heeft jouw voorspelling <strong>opengezet om te wijzigen</strong>. Vergeet niet opnieuw definitief in te leveren.</p></div>` : "")}
     <div class="top3-grid">${slots.join("")}</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:0 0 14px;">
-      <h3 class="section-title" style="margin:0;">Alle spelers <span style="color:var(--muted2);font-weight:600;">(${d.topscorers.length}/${TOPSCORER_COUNT} gekozen)</span></h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:0 0 12px;">
+      <h3 class="section-title" style="margin:0;">Spelers <span style="color:var(--muted2);font-weight:600;">(${d.topscorers.length}/${TOPSCORER_COUNT} gekozen)</span></h3>
       ${isLocked() ? "" : `<button type="button" class="btn btn-primary btn-sm" style="padding:9px 16px;" data-action="savedraft">Concept opslaan</button>`}
     </div>
-    <div class="player-grid">${grid}</div>
+    ${renderPlayerFilters("ts", state.tsFilter)}
+    <div class="player-grid">${grid}</div>${moreNote}
   </div>`);
 }
 
@@ -458,9 +536,9 @@ function renderKlassement() {
       <div class="prize">€${pz[i] || 0}</div>
     </div>`).join("");
 
-  const rows = board.map(r => `
+  const boardRow = (r, rank) => `
     <div class="board-row ${r.id === state.session.id ? "me" : ""}">
-      <div class="rk" style="color:${r.rank <= 3 ? "var(--gold)" : "#c2bdb0"};">${r.rank}</div>
+      <div class="rk" style="color:${rank <= 3 ? "var(--gold)" : "#c2bdb0"};">${rank}</div>
       <div class="who">
         <div class="av" style="background:${colorFor(r.name)};">${initial(r.name)}</div>
         <span class="nm">${esc(r.name)}</span>
@@ -470,7 +548,15 @@ function renderKlassement() {
       <div class="num">${r.k}</div>
       <div class="num">${r.t}</div>
       <div class="tot">${r.total}</div>
-    </div>`).join("");
+    </div>`;
+
+  const rows = board.map(r => boardRow(r, r.rank)).join("");
+
+  // Final group-phase standings (the start scores for the knock-out pool).
+  const groupBoard = board.slice().sort((a, b) => b.g - a.g || a.name.localeCompare(b.name));
+  const groupRows = groupBoard.map((r, i) => boardRow(r, i + 1)).join("");
+
+  const headRow = `<div class="board-head"><div>Pos</div><div>Deelnemer</div><div style="text-align:right;">Groepsf.</div><div style="text-align:right;">Knock-out</div><div style="text-align:right;">Topsc.</div><div style="text-align:right;">Totaal</div></div>`;
 
   return renderShell(`
   <div class="page">
@@ -478,10 +564,19 @@ function renderKlassement() {
     <h1 class="display" style="font-size:30px;margin-bottom:22px;">Klassement</h1>
     ${board.length >= 3 ? `<div class="podium-grid">${podium}</div>` : ""}
     <div class="board">
-      <div class="board-head"><div>Pos</div><div>Deelnemer</div><div style="text-align:right;">Groepsf.</div><div style="text-align:right;">Knock-out</div><div style="text-align:right;">Topsc.</div><div style="text-align:right;">Totaal</div></div>
+      ${headRow}
       ${rows || `<div class="empty-state" style="border:none;">Nog geen deelnemers in het klassement.</div>`}
     </div>
     <p style="font-size:12.5px;color:var(--muted2);margin:14px 2px 0;">Eindscore = stand na groepsfase + knock-out punten + topscorers. Punten verschijnen zodra een admin de uitslagen invult.</p>
+
+    ${board.length ? `
+    <h3 class="section-title" style="margin:38px 0 14px;">Eindstand groepsfase</h3>
+    <div class="board">
+      ${headRow}
+      ${groupRows}
+    </div>
+    <p style="font-size:12.5px;color:var(--muted2);margin:14px 2px 0;">De stand zoals die na de groepsfase vaststond — de startpunten waarmee iedereen aan de knock-outpool begint.</p>
+    ` : ""}
   </div>`);
 }
 
@@ -498,6 +593,12 @@ function renderMijn() {
   const me = state.me || { g: 0, k: 0, t: 0, total: 0 };
   const tm = teamMap(), pm = playerMap();
   const submitted = d.status === "ingeleverd";
+  const finalNow = effectiveSubmitted();      // submitted OR deadline passed
+  const statusCls = editUnlocked() && finalNow ? "status-concept" : (finalNow ? "status-done" : "status-concept");
+  const statusTxt = editUnlocked() && finalNow ? "BEWERKEN OPENGEZET 🔓"
+    : submitted ? "INGELEVERD ✓"
+    : deadlinePassed() ? "DEFINITIEF · LAATSTE CONCEPT"
+    : "CONCEPT · NOG NIET INGELEVERD";
   const goals = (state.settings.results && state.settings.results.goals) || {};
 
   const sel16 = d.sel16.map(c => { const t = tm[c]; return t ? `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;background:#F7F8FF;border:1px solid #DCE1FB;border-radius:11px;padding:10px 4px;"><span style="font-size:22px;">${tflag(t)}</span><span style="font-size:10px;font-weight:700;text-align:center;line-height:1.1;color:#3a3d45;">${esc(t.name)}</span></div>` : ""; }).join("") || `<div style="grid-column:1/-1;color:var(--muted2);font-size:13px;">Nog geen teams gekozen.</div>`;
@@ -510,7 +611,7 @@ function renderMijn() {
   <div class="page">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px;">
       <div><div class="eyebrow">Profiel · ${esc(state.session.username)}</div><h1 class="display" style="font-size:30px;">Mijn voorspellingen</h1></div>
-      <div class="statusline ${submitted ? "status-done" : "status-concept"}"><span class="dot"></span><span class="t">${submitted ? "INGELEVERD ✓" : "CONCEPT · NOG NIET INGELEVERD"}</span></div>
+      <div class="statusline ${statusCls}"><span class="dot"></span><span class="t">${statusTxt}</span></div>
     </div>
 
     <div class="stat-grid">
@@ -535,7 +636,7 @@ function renderMijn() {
           <div><div class="mono" style="font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:7px;">KWARTFINALISTEN (8)</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${chipFlags(d.quarter, "#F4FCFB", "#CFEFED")}</div></div>
           <div><div class="mono" style="font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:7px;">HALVE FINALISTEN (4)</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${chipFlags(d.semi, "#F3FBF6", "#C9EAD5")}</div></div>
           <div><div class="mono" style="font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:7px;">FINALISTEN (2)</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${chipFlags(d.finalists, "#FEF6F2", "#F6D3C3")}</div></div>
-          <div style="display:flex;align-items:center;gap:11px;background:var(--navy);border-radius:12px;padding:13px 15px;color:#fff;"><span style="font-size:28px;">${champ ? champ.flag : "🏆"}</span><div><div class="mono" style="font-size:9px;color:var(--gold);letter-spacing:1px;">WERELDKAMPIOEN</div><div class="exp" style="font-weight:800;font-size:17px;">${champ ? esc(champ.name) : "— nog niet gekozen —"}</div></div></div>
+          <div style="display:flex;align-items:center;gap:11px;background:var(--navy);border-radius:12px;padding:13px 15px;color:#fff;"><span style="font-size:28px;">${champ ? tflag(champ) : "🏆"}</span><div><div class="mono" style="font-size:9px;color:var(--gold);letter-spacing:1px;">WERELDKAMPIOEN</div><div class="exp" style="font-weight:800;font-size:17px;">${champ ? esc(champ.name) : "— nog niet gekozen —"}</div></div></div>
         </div>
       </div>
       <div class="card card-pad">
@@ -613,12 +714,19 @@ function renderAdmin() {
   const rows = users.map(u => {
     const p = preds[u.id] || {};
     const sub = p.status === "ingeleverd";
+    const unclaimed = u.claimed === false;
+    const subLabel = unclaimed
+      ? `<div class="mono" style="font-size:10px;color:var(--orange);">nog niet geregistreerd</div>`
+      : `<div class="mono" style="font-size:11px;color:var(--muted2);">${new Date(u.created_at).toLocaleDateString("nl-NL")}</div>`;
     return `<div class="admin-grid admin-row">
       <div style="display:flex;align-items:center;gap:11px;"><div class="av" style="width:32px;height:32px;border-radius:50%;background:${colorFor(u.username)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;">${initial(u.username)}</div>
-        <div><div style="font-weight:700;font-size:14px;">${esc(u.username)}</div><div class="mono" style="font-size:11px;color:var(--muted2);">${new Date(u.created_at).toLocaleDateString("nl-NL")}</div></div></div>
+        <div><div style="font-weight:700;font-size:14px;">${esc(u.username)}</div>${subLabel}</div></div>
       <div><span class="chip ${u.is_admin ? "chip-admin" : "chip-user"}">${u.is_admin ? "Admin" : "Deelnemer"}</span></div>
       <div class="col-hide"><span class="chip ${u.paid ? "chip-yes" : "chip-no"}" data-action="admin-paid" data-id="${u.id}">${u.paid ? "Betaald" : "Open"}</span></div>
-      <div class="col-hide"><span class="chip ${sub ? "chip-yes" : "chip-no"}" style="cursor:default;">${sub ? "Ingeleverd" : "Concept"}</span></div>
+      <div class="col-hide" style="display:flex;flex-direction:column;gap:5px;align-items:flex-start;">
+        <span class="chip ${sub ? "chip-yes" : "chip-no"}" style="cursor:default;">${sub ? "Ingeleverd" : "Concept"}</span>
+        <span class="chip ${u.edit_unlocked ? "chip-edit-on" : "chip-edit-off"}" data-action="admin-editunlock" data-id="${u.id}" title="Geef deze deelnemer toestemming om na inleveren te wijzigen">${u.edit_unlocked ? "🔓 Wijzigen aan" : "🔒 Wijzigen uit"}</span>
+      </div>
       <div class="col-hide"><input class="gp-input" type="number" value="${Number(u.group_points) || 0}" data-action="admin-gp" data-id="${u.id}" title="Groepsfase punten"></div>
       <div style="display:flex;gap:7px;justify-content:flex-end;">
         <button type="button" class="btn btn-outline btn-sm" data-action="admin-role" data-id="${u.id}">${u.is_admin ? "Beheer afnemen" : "Maak admin"}</button>
@@ -638,9 +746,16 @@ function renderAdmin() {
 
   const winnerOpts = (state.teams || []).map(t => `<button type="button" class="btn ${res.winner === t.code ? "btn-primary" : "btn-outline"} btn-sm" style="${res.winner === t.code ? "background:var(--gold);color:var(--navy);" : ""}margin:0 6px 6px 0;" data-action="admin-winner" data-code="${t.code}">${tflag(t)} ${esc(t.code)}</button>`).join("");
 
-  const goalRows = (state.players || []).map(p => `<div class="goal-row"><span style="font-size:13.5px;">${pflag(p)} ${esc(p.name)} <span style="color:var(--muted2);font-size:12px;">· ${esc(p.club)}</span></span><input class="gp-input" style="text-align:center;" type="number" min="0" value="${Number((res.goals || {})[p.id]) || 0}" data-action="admin-goal" data-id="${p.id}" title="Doelpunten in knock-out"></div>`).join("");
+  const goalPlayersAll = filterPlayerPool(state.players, state.goalFilter);
+  const GCAP = 150;
+  const goalMoreNote = goalPlayersAll.length > GCAP ? `<div class="pf-empty" style="margin-top:10px;">Nog ${goalPlayersAll.length - GCAP} spelers — verfijn met land, positie of zoek.</div>` : "";
+  const goalRows = goalPlayersAll.slice(0, GCAP).map(p => `<div class="goal-row"><span style="font-size:13.5px;">${pflag(p)} ${esc(p.name)} <span style="color:var(--muted2);font-size:12px;">· ${esc([p.club, p.posLabel].filter(Boolean).join(" · "))}</span></span><input class="gp-input" style="text-align:center;" type="number" min="0" value="${Number((res.goals || {})[p.id]) || 0}" data-action="admin-goal" data-id="${p.id}" title="Doelpunten in knock-out"></div>`).join("")
+    || `<div class="pf-empty">Geen spelers gevonden — pas je filter aan.</div>`;
 
-  const playerList = (state.players || []).map(p => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${pflag(p)} ${esc(p.name)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-player" data-id="${p.id}" title="Verwijder">×</button></span>`).join("");
+  // Only hand-added (custom) players are listed here; the full WC squad pool is built in.
+  const customPlayers = state.settings.players || [];
+  const playerList = customPlayers.map(p => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${pflag(p)} ${esc(p.name)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-player" data-id="${p.id}" title="Verwijder">×</button></span>`).join("");
+  const teamSelOpts = (state.teams || []).slice().sort((a, b) => a.name.localeCompare(b.name)).map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join("");
   const teamList = (state.teams || []).map(t => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${tflag(t)} ${esc(t.code)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-team" data-code="${t.code}" title="Verwijder">×</button></span>`).join("");
 
   const dlValue = state.settings.deadline ? new Date(new Date(state.settings.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
@@ -682,7 +797,7 @@ function renderAdmin() {
       <div style="padding:18px 20px 0;"><h3 class="section-title">Deelnemers beheren</h3></div>
       <div class="admin-grid admin-head"><div>Deelnemer</div><div>Rol</div><div class="col-hide">Inleg</div><div class="col-hide">Voorspelling</div><div class="col-hide">Groepsf.</div><div style="text-align:right;">Acties</div></div>
       ${rows || `<div style="padding:20px;color:var(--muted2);">Nog geen deelnemers.</div>`}
-      <p style="font-size:12.5px;color:var(--muted2);margin:0;padding:14px 20px;">De eerste geregistreerde deelnemer is automatisch beheerder. Tik op de inleg-chip om Betaald/Open te wisselen; vul groepsfase-punten in en ze worden direct opgeslagen.</p>
+      <p style="font-size:12.5px;color:var(--muted2);margin:0;padding:14px 20px;">Tik op de <strong>inleg-chip</strong> om Betaald/Open te wisselen en op de <strong>🔒 Wijzigen-chip</strong> om een deelnemer (op verzoek) zijn voorspelling weer te laten aanpassen, ook ná inleveren of na de deadline. Groepsfase-punten worden direct opgeslagen. Deelnemers met "nog niet geregistreerd" claimen hun account zelf via het uitklapmenu.</p>
     </div>
 
     <div class="admin-section">
@@ -693,19 +808,22 @@ function renderAdmin() {
     </div>
 
     <div class="admin-section">
-      <h3 class="section-title">Doelpunten topscorers (knock-out)</h3>
-      <div style="max-width:520px;">${goalRows}</div>
+      <h3 class="section-title">Doelpunten topscorers (knock-out) <span style="font-weight:600;color:var(--muted2);font-size:13px;">— filter op land/positie of zoek</span></h3>
+      ${renderPlayerFilters("goal", state.goalFilter)}
+      <div style="max-width:560px;">${goalRows}</div>${goalMoreNote}
       <button type="button" class="btn btn-primary btn-sm" style="margin-top:14px;" data-action="admin-save-goals">Doelpunten opslaan &amp; herbereken</button>
     </div>
 
     <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
       <div class="admin-section" style="margin:0;">
         <h3 class="section-title">Spelers (topscorer-keuze)</h3>
-        <div style="margin-bottom:14px;">${playerList || `<span style="color:var(--muted2);font-size:13px;">Geen spelers.</span>`}</div>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px;">Alle <strong>${WC_PLAYERS.length} WK-spelers</strong> zitten al in de pool — te kiezen via het filter op land/positie. Hieronder voeg je alleen extra spelers toe (bv. een late selectie).</p>
+        ${playerList ? `<div style="margin-bottom:14px;">${playerList}</div>` : ""}
         <div class="inline-form">
           <input type="text" id="np-name" placeholder="Naam" style="flex:1;min-width:120px;">
-          <input type="text" id="np-cc" placeholder="ar" style="width:60px;" title="Landcode voor de vlag, bv. nl, br, gb-eng">
-          <input type="text" id="np-club" placeholder="Land" style="width:120px;">
+          <select id="np-team" class="pf-sel" style="min-width:120px;"><option value="">Land…</option>${teamSelOpts}</select>
+          <select id="np-pos" class="pf-sel"><option value="A">Aanvaller</option><option value="M">Middenvelder</option><option value="V">Verdediger</option><option value="K">Keeper</option></select>
+          <input type="text" id="np-club" placeholder="Club (optioneel)" style="width:140px;">
           <button type="button" class="btn btn-dark btn-sm" data-action="admin-add-player">+ Speler</button>
         </div>
       </div>

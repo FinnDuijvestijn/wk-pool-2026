@@ -12,8 +12,14 @@ create table if not exists public.users (
   is_admin      boolean not null default false,
   paid          boolean not null default false,
   group_points  integer not null default 0,   -- stand na de groepsfase (door admin ingevuld)
+  claimed       boolean not null default true, -- false = vooraf aangemaakt, nog niet geregistreerd
+  edit_unlocked boolean not null default false,-- admin gaf toestemming om na inleveren te wijzigen
   created_at    timestamptz not null default now()
 );
+
+-- If the table already existed, make sure the newer columns are present.
+alter table public.users add column if not exists claimed       boolean not null default true;
+alter table public.users add column if not exists edit_unlocked boolean not null default false;
 
 -- 2) PREDICTIONS (one row per user) --------------------------
 create table if not exists public.predictions (
