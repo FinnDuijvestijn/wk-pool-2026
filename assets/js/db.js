@@ -134,6 +134,7 @@ async function loadSettings() {
   data.results.goals = data.results.goals || {};
   if (!data.teams || !data.teams.length) data.teams = DEFAULT_TEAMS;
   data.players = data.players || [];   // extra hand-added players only; full pool = WC_PLAYERS
+  data.prize_pct = (data.prize_pct && data.prize_pct.length ? data.prize_pct : [70, 20, 10]).map(Number);
   return data;
 }
 

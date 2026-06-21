@@ -297,6 +297,21 @@ select.field{appearance:none;-webkit-appearance:none;background-image:url("data:
 .goal-row{display:grid;grid-template-columns:1fr 90px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #F4F0E5;}
 .inline-form{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .inline-form input{padding:9px 12px;border:1.5px solid var(--inputborder);border-radius:9px;font-family:var(--sans);font-size:13px;}
+/* prize-split editor */
+.prize-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.prize-sum{font-family:var(--exp);font-weight:800;font-size:13px;padding:5px 12px;border-radius:999px;margin-left:auto;}
+.prize-sum.ok{background:#E9F7EE;color:var(--green);}
+.prize-sum.bad{background:#FFF1F1;color:#C53030;}
+.prize-rows{display:flex;flex-direction:column;gap:10px;}
+.prize-row{display:flex;align-items:center;gap:12px;}
+.prize-rank{flex:0 0 76px;font-weight:800;font-size:14px;}
+.prize-rank span{color:var(--muted2);font-weight:600;font-size:12px;}
+.prize-slider{flex:1;min-width:120px;accent-color:var(--blue);height:6px;cursor:pointer;}
+.prize-num-wrap{flex:0 0 auto;display:flex;align-items:center;gap:4px;}
+.prize-num{width:74px;padding:8px 10px;border:1.5px solid var(--inputborder);border-radius:9px;font-family:var(--sans);font-size:14px;text-align:right;}
+.prize-num:focus{border-color:var(--blue);outline:none;}
+.prize-num-wrap span{color:var(--muted2);font-size:13px;}
+.prize-amt{flex:0 0 72px;text-align:right;font-family:var(--exp);font-weight:800;font-size:14px;color:var(--teal);}
 
 /* ---------- footer ---------- */
 .foot{border-top:1px solid var(--border);background:#fff;}
@@ -396,4 +411,10 @@ select.field{appearance:none;-webkit-appearance:none;background-image:url("data:
   .pf-sel,.pf-q{width:100%;min-width:0;}
   /* admin forms → roomy inputs */
   #adm-deadline{flex:1 1 100%;}
+  /* prize editor → slider drops to its own full-width line */
+  .prize-row{flex-wrap:wrap;}
+  .prize-rank{flex:1 1 auto;}
+  .prize-amt{flex:0 0 auto;margin-left:auto;}
+  .prize-slider{order:5;flex:1 1 100%;}
+  .prize-sum{margin-left:0;}
 }

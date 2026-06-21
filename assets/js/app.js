@@ -13,7 +13,8 @@ const state = {
   claimUsername: "",        // "" = none picked, "__new__" = brand-new account
   editUnlocked: false,      // admin gave me rights to edit after submitting
   tsFilter: { scope: "popular", team: "", pos: "", q: "" },   // topscorer pick page
-  goalFilter: { scope: "popular", team: "", pos: "", q: "" }, // admin goals page
+  goalFilter: { scope: "selected", team: "", pos: "", q: "" }, // admin goals page (default: only chosen players)
+  prizeEdit: null,          // admin prize-split working copy
   settings: null,
   teams: [],
   players: [],
@@ -92,6 +93,7 @@ async function navigate(screen) {
   }
   if (screen === "admin" && !(state.session && state.session.is_admin)) screen = "dashboard";
   state.menuOpen = false;
+  state.prizeEdit = null;   // re-init prize editor from saved settings on next admin visit
   state.screen = screen;
   rerender();
 }
@@ -297,13 +299,57 @@ async function adminSaveDeadline() {
   try { await saveSettings({ deadline: new Date(val).toISOString() }); state.settings = await loadSettings(); rerender(); toast("Deadline opgeslagen.", "ok"); }
   catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
+function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+function clampPct(n) { return Math.min(100, Math.max(0, Number(n) || 0)); }
+
+function adminPrizeCount(n) {
+  n = Math.max(1, Math.min(6, parseInt(n, 10) || 1));
+  const pe = state.prizeEdit || (state.prizeEdit = { pct: prizePct().slice() });
+  const next = [];
+  for (let i = 0; i < n; i++) next.push(pe.pct[i] != null ? pe.pct[i] : 0);
+  pe.pct = next;
+  rerender(true);
+}
+function adminPrizeEven() {
+  const pe = state.prizeEdit || (state.prizeEdit = { pct: prizePct().slice() });
+  const n = pe.pct.length || 1;
+  const each = round2(100 / n);
+  pe.pct = pe.pct.map(() => each);
+  pe.pct[0] = round2(pe.pct[0] + (100 - each * n));   // absorb rounding remainder
+  rerender(true);
+}
+// live update while dragging the slider / typing the number — no full re-render
+function adminPrizeLive(i, value, fromSlider) {
+  i = parseInt(i, 10);
+  const pe = state.prizeEdit; if (!pe) return;
+  const v = clampPct(value);
+  pe.pct[i] = v;
+  const slider = document.querySelector(`.prize-slider[data-i="${i}"]`);
+  const num = document.querySelector(`.prize-num[data-i="${i}"]`);
+  if (fromSlider && num) num.value = v;
+  if (!fromSlider && slider) slider.value = v;
+  const amt = document.querySelector(`.prize-amt[data-amt="${i}"]`);
+  if (amt) amt.textContent = "€" + fmtEuro(pot() * v / 100);
+  const sumEl = document.getElementById("prize-sum");
+  if (sumEl) {
+    const sum = pe.pct.reduce((a, b) => a + (Number(b) || 0), 0);
+    sumEl.textContent = "Totaal: " + fmtNum(sum) + "%";
+    sumEl.classList.toggle("ok", Math.abs(sum - 100) < 0.05);
+    sumEl.classList.toggle("bad", Math.abs(sum - 100) >= 0.05);
+  }
+}
 async function adminSavePrizes() {
-  const fee = Math.max(0, parseInt((document.getElementById("adm-fee") || {}).value, 10) || 0);
-  const p1 = parseInt((document.getElementById("adm-p1") || {}).value, 10) || 0;
-  const p2 = parseInt((document.getElementById("adm-p2") || {}).value, 10) || 0;
-  const p3 = parseInt((document.getElementById("adm-p3") || {}).value, 10) || 0;
-  try { await saveSettings({ entry_fee: fee, prize_pct: [p1, p2, p3] }); state.settings = await loadSettings(); rerender(); toast("Instellingen opgeslagen.", "ok"); }
-  catch (e) { toast("Mislukt: " + e.message, "err"); }
+  const fee = round2((document.getElementById("adm-fee") || {}).value);
+  const pe = state.prizeEdit || { pct: prizePct() };
+  const pct = pe.pct.map(round2);
+  const sum = pct.reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - 100) > 0.1) { toast(`Percentages samen = ${pct.reduce((a, b) => a + b, 0)}% — moet 100% zijn.`, "err"); return; }
+  try {
+    await saveSettings({ entry_fee: fee, prize_pct: pct });
+    state.prizeEdit = null;
+    state.settings = await loadSettings();
+    rerender(); toast("Inleg & prijsverdeling opgeslagen.", "ok");
+  } catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 function adminToggleResult(stage, code) {
   const res = state.settings.results;
@@ -414,6 +460,8 @@ function onClick(e) {
     case "admin-delete": adminDelete(d.id, d.name); break;
     case "admin-deadline": adminSaveDeadline(); break;
     case "admin-prizes": adminSavePrizes(); break;
+    case "prize-count": adminPrizeCount(d.n); break;
+    case "prize-even": adminPrizeEven(); break;
     case "admin-result": adminToggleResult(d.stage, d.code); break;
     case "admin-winner": adminSetWinner(d.code); break;
     case "admin-save-results": adminSaveResults(); break;
@@ -435,8 +483,12 @@ function onChange(e) {
   else if (el.dataset.action === "pf-pos") setPlayerFilter(el.dataset.which, "pos", el.value);
 }
 function onInput(e) {
-  const el = e.target.closest("[data-action='pf-q']");
-  if (el) setPlayerFilter(el.dataset.which, "q", el.value);
+  const q = e.target.closest("[data-action='pf-q']");
+  if (q) { setPlayerFilter(q.dataset.which, "q", q.value); return; }
+  const sl = e.target.closest("[data-action='prize-slider']");
+  if (sl) { adminPrizeLive(sl.dataset.i, sl.value, true); return; }
+  const nm = e.target.closest("[data-action='prize-num']");
+  if (nm) { adminPrizeLive(nm.dataset.i, nm.value, false); return; }
 }
 function onKeydown(e) {
   if (e.key === "Enter" && !state.session && (e.target.id === "au-password" || e.target.id === "au-confirm" || e.target.id === "au-username")) {

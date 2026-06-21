@@ -69,9 +69,20 @@ function effectiveSubmitted() {
 function participants() { return (state.users || []).length; }
 function entryFee() { return (state.settings && state.settings.entry_fee) || 10; }
 function pot() { return participants() * entryFee(); }
+function prizePct() {
+  return ((state.settings && state.settings.prize_pct) || [70, 20, 10]).map(Number);
+}
 function prizes() {
-  const pct = (state.settings && state.settings.prize_pct) || [70, 20, 10];
-  return pct.map(p => Math.round(pot() * p / 100));
+  return prizePct().map(p => pot() * p / 100);
+}
+// "33.3" → "33,3"  ·  whole numbers stay whole  (Dutch decimal comma)
+function fmtNum(n) {
+  const r = Math.round((Number(n) || 0) * 100) / 100;
+  return (Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0$/, "")).replace(".", ",");
+}
+function fmtEuro(n) {
+  const r = Math.round((Number(n) || 0) * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(".", ",");
 }
 
 /* ============================================================
@@ -463,11 +474,13 @@ function renderPlayerFilters(which, f) {
     .map(t => `<option value="${t.code}" ${f.team === t.code ? "selected" : ""}>${esc(t.name)}</option>`).join("");
   const posOpts = [["K", "Keepers"], ["V", "Verdedigers"], ["M", "Middenvelders"], ["A", "Aanvallers"]]
     .map(([k, l]) => `<option value="${k}" ${f.pos === k ? "selected" : ""}>${l}</option>`).join("");
+  const scopes = which === "goal"
+    ? [["selected", "🎯 Gekozen"], ["all", "Alle spelers"]]
+    : [["popular", "⭐ Populair"], ["all", "Alle spelers"]];
   return `
   <div class="pfbar">
     <div class="pf-seg">
-      <button type="button" class="pf-tab ${f.scope === "popular" ? "active" : ""}" data-action="pf-scope" data-which="${which}" data-scope="popular">⭐ Populair</button>
-      <button type="button" class="pf-tab ${f.scope === "all" ? "active" : ""}" data-action="pf-scope" data-which="${which}" data-scope="all">Alle spelers</button>
+      ${scopes.map(([s, lbl]) => `<button type="button" class="pf-tab ${f.scope === s ? "active" : ""}" data-action="pf-scope" data-which="${which}" data-scope="${s}">${lbl}</button>`).join("")}
     </div>
     ${f.scope === "all" ? `
     <select class="pf-sel" data-action="pf-team" data-which="${which}"><option value="">🌍 Alle landen</option>${teamOpts}</select>
@@ -491,7 +504,7 @@ function renderTopscorers() {
       const g = Number(goals[p.id]) || 0;
       slots.push(`<div class="top3"><div class="slot">KEUZE ${i + 1}</div>
         <div class="av">${pflag(p)}</div>
-        <div style="flex:1;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc(p.club)}</div></div>
+        <div style="flex:1;"><div class="nm">${esc(p.name)}</div><div class="cl">${esc([p.club, p.posLabel].filter(Boolean).join(" · "))}</div></div>
         <div style="text-align:right;"><div class="pt">${g * goalPointsForPos(p.pos)}</div><div class="gl">${g} GOALS</div></div></div>`);
     } else {
       slots.push(`<div class="top3 empty"><div>Keuze ${i + 1}<br><span style="font-size:11px;">nog leeg</span></div></div>`);
@@ -554,7 +567,7 @@ function renderKlassement() {
       <div class="av" style="background:${colorFor(r.name)};">${initial(r.name)}</div>
       <div class="nm">${esc(r.name)}</div>
       <div class="tot">${r.total}</div>
-      <div class="prize">€${pz[i] || 0}</div>
+      <div class="prize">${pz[i] != null ? "€" + fmtEuro(pz[i]) : "—"}</div>
     </div>`).join("");
 
   const boardRow = (r, rank) => `
@@ -636,7 +649,7 @@ function renderMijn() {
 
   const champ = d.winner ? tm[d.winner] : null;
   const tops = d.topscorers.map(pid => { const p = pm[pid]; if (!p) return ""; const g = Number(goals[p.id]) || 0;
-    return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;"><div style="width:42px;height:42px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${pflag(p)}</div><div style="flex:1;"><div class="exp" style="font-weight:800;font-size:14.5px;">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted2);">${esc(p.club)}</div></div><div style="text-align:right;"><div class="exp" style="font-weight:900;font-size:18px;color:var(--green);">${g * goalPointsForPos(p.pos)}</div><div class="mono" style="font-size:9px;color:var(--muted2);">${g} GOALS · ${goalPointsForPos(p.pos)}/G</div></div></div>`; }).join("") || `<span style="font-size:12.5px;color:var(--muted2);">Nog geen topscorers gekozen.</span>`;
+    return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;"><div style="width:42px;height:42px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:21px;flex:none;">${pflag(p)}</div><div style="flex:1;"><div class="exp" style="font-weight:800;font-size:14.5px;">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted2);">${esc([p.club, p.posLabel].filter(Boolean).join(" · "))}</div></div><div style="text-align:right;"><div class="exp" style="font-weight:900;font-size:18px;color:var(--green);">${g * goalPointsForPos(p.pos)}</div><div class="mono" style="font-size:9px;color:var(--muted2);">${g} GOALS · ${goalPointsForPos(p.pos)}/G</div></div></div>`; }).join("") || `<span style="font-size:12.5px;color:var(--muted2);">Nog geen topscorers gekozen.</span>`;
 
   return renderShell(`
   <div class="page">
@@ -718,13 +731,11 @@ function renderReglement() {
       </div>
       <div style="background:var(--teal);border-radius:18px;padding:24px;color:#fff;">
         <div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:15px;margin-bottom:12px;">💶</div>
-        <h3 class="exp" style="font-weight:800;font-size:16px;margin:0 0 10px;">Prijzenpot · €${entryFee()} inleg p.p.</h3>
+        <h3 class="exp" style="font-weight:800;font-size:16px;margin:0 0 10px;">Prijzenpot · €${fmtEuro(entryFee())} inleg p.p.</h3>
         <div style="display:flex;flex-direction:column;gap:6px;font-size:13.5px;">
-          <div style="display:flex;justify-content:space-between;"><span>🥇 1e plaats (${pct[0]}%)</span><strong>€${pz[0]}</strong></div>
-          <div style="display:flex;justify-content:space-between;"><span>🥈 2e plaats (${pct[1]}%)</span><strong>€${pz[1]}</strong></div>
-          <div style="display:flex;justify-content:space-between;"><span>🥉 3e plaats (${pct[2]}%)</span><strong>€${pz[2]}</strong></div>
+          ${pct.map((p, i) => `<div style="display:flex;justify-content:space-between;"><span>${["🥇", "🥈", "🥉"][i] || "🏅"} ${i + 1}e plaats (${fmtNum(p)}%)</span><strong>€${fmtEuro(pz[i])}</strong></div>`).join("")}
         </div>
-        <div style="margin-top:12px;font-size:12px;color:#d8f6f4;">Totale pot: €${pot()} · ${participants()} deelnemers</div>
+        <div style="margin-top:12px;font-size:12px;color:#d8f6f4;">Totale pot: €${fmtEuro(pot())} · ${participants()} deelnemers</div>
       </div>
     </div>
   </div>`);
@@ -777,11 +788,24 @@ function renderAdmin() {
 
   const winnerOpts = (state.teams || []).map(t => `<button type="button" class="btn ${res.winner === t.code ? "btn-primary" : "btn-outline"} btn-sm" style="${res.winner === t.code ? "background:var(--gold);color:var(--navy);" : ""}margin:0 6px 6px 0;" data-action="admin-winner" data-code="${t.code}">${tflag(t)} ${esc(t.code)}</button>`).join("");
 
-  const goalPlayersAll = filterPlayerPool(state.players, state.goalFilter);
+  // Players actually chosen by participants (so the admin only scores those).
+  const chosenSet = new Set();
+  (state.predictions || []).forEach(p => (p.topscorers || []).forEach(id => chosenSet.add(id)));
+  const pmGoals = playerMap();
+  let goalPlayersAll;
+  if (state.goalFilter.scope === "selected") {
+    goalPlayersAll = [...chosenSet].map(id => pmGoals[id]).filter(Boolean)
+      .sort((a, b) => (Number((res.goals || {})[b.id]) || 0) - (Number((res.goals || {})[a.id]) || 0) || a.name.localeCompare(b.name));
+  } else {
+    goalPlayersAll = filterPlayerPool(state.players, state.goalFilter);
+  }
   const GCAP = 150;
   const goalMoreNote = goalPlayersAll.length > GCAP ? `<div class="pf-empty" style="margin-top:10px;">Nog ${goalPlayersAll.length - GCAP} spelers — verfijn met land, positie of zoek.</div>` : "";
+  const goalEmpty = state.goalFilter.scope === "selected"
+    ? `<div class="pf-empty">Nog geen topscorers gekozen door deelnemers. Zodra iemand spelers kiest, verschijnen ze hier automatisch. (Of kies "Alle spelers".)</div>`
+    : `<div class="pf-empty">Geen spelers gevonden — pas je filter aan.</div>`;
   const goalRows = goalPlayersAll.slice(0, GCAP).map(p => `<div class="goal-row"><span style="font-size:13.5px;">${pflag(p)} ${esc(p.name)} <span style="color:var(--muted2);font-size:12px;">· ${esc([p.club, p.posLabel].filter(Boolean).join(" · "))}</span></span><input class="gp-input" style="text-align:center;" type="number" min="0" value="${Number((res.goals || {})[p.id]) || 0}" data-action="admin-goal" data-id="${p.id}" title="Doelpunten in knock-out"></div>`).join("")
-    || `<div class="pf-empty">Geen spelers gevonden — pas je filter aan.</div>`;
+    || goalEmpty;
 
   // Only hand-added (custom) players are listed here; the full WC squad pool is built in.
   const customPlayers = state.settings.players || [];
@@ -790,6 +814,22 @@ function renderAdmin() {
   const teamList = (state.teams || []).map(t => `<span class="chip chip-user" style="margin:0 6px 6px 0;">${tflag(t)} ${esc(t.code)} <button type="button" style="border:none;background:none;color:#C53030;cursor:pointer;font-weight:800;" data-action="admin-del-team" data-code="${t.code}" title="Verwijder">×</button></span>`).join("");
 
   const dlValue = state.settings.deadline ? new Date(new Date(state.settings.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+
+  // ----- prize-split editor -----
+  if (!state.prizeEdit) state.prizeEdit = { pct: prizePct().slice() };
+  const pe = state.prizeEdit;
+  const peSum = pe.pct.reduce((a, b) => a + (Number(b) || 0), 0);
+  const sumOk = Math.abs(peSum - 100) < 0.05;
+  const medalFor = i => (["🥇", "🥈", "🥉"][i] || `${i + 1}e`);
+  const countBtns = [1, 2, 3, 4, 5, 6].map(n =>
+    `<button type="button" class="pf-tab ${pe.pct.length === n ? "active" : ""}" data-action="prize-count" data-n="${n}">${n}</button>`).join("");
+  const prizeRows = pe.pct.map((v, i) => `
+    <div class="prize-row">
+      <div class="prize-rank">${medalFor(i)} <span>${i + 1}e</span></div>
+      <input type="range" class="prize-slider" min="0" max="100" step="0.5" value="${v}" data-action="prize-slider" data-i="${i}">
+      <div class="prize-num-wrap"><input type="number" class="prize-num" min="0" max="100" step="0.1" value="${v}" data-action="prize-num" data-i="${i}"><span>%</span></div>
+      <span class="prize-amt" data-amt="${i}">€${fmtEuro(pot() * v / 100)}</span>
+    </div>`).join("");
 
   return renderShell(`
   <div class="page">
@@ -813,15 +853,21 @@ function renderAdmin() {
         <button type="button" class="btn btn-dark btn-sm" data-action="admin-deadline">Deadline opslaan</button>
         <span style="font-size:12.5px;color:var(--muted);">Huidig: ${fmtDeadline(state.settings.deadline)}</span>
       </div>
-      <div class="inline-form">
+      <div class="inline-form" style="margin-bottom:16px;">
         <label style="font-size:13px;font-weight:700;">Inleg p.p. €</label>
-        <input type="number" id="adm-fee" value="${entryFee()}" style="width:80px;">
-        <label style="font-size:13px;font-weight:700;">Prijsverdeling %</label>
-        <input type="number" id="adm-p1" value="${pct[0]}" style="width:64px;" title="1e">
-        <input type="number" id="adm-p2" value="${pct[1]}" style="width:64px;" title="2e">
-        <input type="number" id="adm-p3" value="${pct[2]}" style="width:64px;" title="3e">
-        <button type="button" class="btn btn-dark btn-sm" data-action="admin-prizes">Opslaan</button>
+        <input type="number" id="adm-fee" value="${entryFee()}" style="width:90px;" step="0.5" min="0">
+        <span style="font-size:12.5px;color:var(--muted);">Pot: <strong>€${fmtEuro(pot())}</strong> (${participants()} × €${fmtEuro(entryFee())})</span>
       </div>
+
+      <div class="prize-head">
+        <span style="font-size:13px;font-weight:700;">Aantal prijzen</span>
+        <div class="pf-seg">${countBtns}</div>
+        <button type="button" class="btn btn-outline btn-sm" data-action="prize-even">Gelijk verdelen</button>
+        <span class="prize-sum ${sumOk ? "ok" : "bad"}" id="prize-sum">Totaal: ${fmtNum(peSum)}%</span>
+      </div>
+      <div class="prize-rows">${prizeRows}</div>
+      <button type="button" class="btn btn-dark btn-sm" style="margin-top:12px;" data-action="admin-prizes">Inleg &amp; prijsverdeling opslaan</button>
+      <div style="font-size:12px;color:var(--muted2);margin-top:8px;">Sleep de balk of typ een percentage (decimalen mogen, bv. 33,3). Samen exact 100%.</div>
     </div>
 
     <div class="admin-section" style="padding:0;overflow:hidden;">
@@ -839,7 +885,7 @@ function renderAdmin() {
     </div>
 
     <div class="admin-section">
-      <h3 class="section-title">Doelpunten topscorers (knock-out) <span style="font-weight:600;color:var(--muted2);font-size:13px;">— filter op land/positie of zoek</span></h3>
+      <h3 class="section-title">Doelpunten topscorers (knock-out) <span style="font-weight:600;color:var(--muted2);font-size:13px;">— standaard alleen de spelers die deelnemers kozen${state.goalFilter.scope === "selected" ? ` (${chosenSet.size})` : ""}</span></h3>
       ${renderPlayerFilters("goal", state.goalFilter)}
       <div style="max-width:560px;">${goalRows}</div>${goalMoreNote}
       <button type="button" class="btn btn-primary btn-sm" style="margin-top:14px;" data-action="admin-save-goals">Doelpunten opslaan &amp; herbereken</button>
