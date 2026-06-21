@@ -359,13 +359,41 @@ select.field{appearance:none;-webkit-appearance:none;background-image:url("data:
   .board-head{display:none;}
   .board-row{grid-template-columns:34px 1fr 70px;}
   .board-row .num{display:none;}
-  .admin-grid{grid-template-columns:1fr 70px 90px;}
   .admin-grid .col-hide{display:none;}
+  .admin-grid.admin-head{display:none;}
+  .admin-grid.admin-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;}
+  .admin-grid.admin-row > div:nth-child(1){flex:1 1 auto;min-width:0;}
+  .admin-grid.admin-row > div:nth-child(2){flex:0 0 auto;}
+  .admin-grid.admin-row > div:last-child{flex:1 1 100%;justify-content:flex-start !important;gap:8px;}
   .hero h1{font-size:26px;}
   .hero-copy h1{font-size:34px;}
 }
 @media(max-width:560px){
+  /* spacing & headings */
+  .page,.page-narrow{padding:22px 14px 64px;}
+  .display{font-size:23px !important;}
+  .card-pad,.stage-card,.reg-card,.admin-section{padding:18px;}
+  /* dashboard hero */
+  .hero{padding:26px 22px;}
+  .hero h1{font-size:22px;}
+  .hero-copy h1{font-size:30px;}
+  .cd-box{width:58px;}
+  .cd-box .v{font-size:22px;}
+  /* grids → phone columns */
   .team-grid{grid-template-columns:repeat(3,1fr);}
   .top3-grid{grid-template-columns:1fr;}
-  .stat-grid{grid-template-columns:1fr;}
+  .player-grid{grid-template-columns:1fr;}
+  .stat-grid{grid-template-columns:repeat(2,1fr);}
+  /* prediction submit bar → stacked full-width buttons */
+  .submitbar{flex-direction:column;align-items:stretch;}
+  .submitbar > div{width:100%;}
+  .submitbar > div:last-child{display:flex;gap:10px;}
+  .submitbar > div:last-child .btn{flex:1;}
+  /* topscorer / goals filter bar → stacked, full width */
+  .pfbar{flex-direction:column;align-items:stretch;}
+  .pf-seg{width:100%;}
+  .pf-seg .pf-tab{flex:1;}
+  .pf-sel,.pf-q{width:100%;min-width:0;}
+  /* admin forms → roomy inputs */
+  #adm-deadline{flex:1 1 100%;}
 }
