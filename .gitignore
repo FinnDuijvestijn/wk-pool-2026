@@ -1,0 +1,10 @@
+# Local dev / preview only — not needed on GitHub Pages
+.claude/
+
+# Reference material (not part of the app)
+*.zip
+*.docx
+*.url
+dsp-logo1.png
+dsp-logo2.jpg
+dsp-logo3.jpg
