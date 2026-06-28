@@ -185,6 +185,13 @@ async function deleteUser(id) {
   const { error } = await sb.from("users").delete().eq("id", id);
   if (error) throw error;
 }
+// Password reset: clear the password and mark the account un-registered again, so
+// it reappears in the register dropdown to be re-claimed with a fresh password.
+// The user's prediction, group points and paid/admin flags are left untouched.
+async function resetUserAccount(id) {
+  const { error } = await sb.from("users").update({ claimed: false, password_hash: "" }).eq("id", id);
+  if (error) throw error;
+}
 
 /* ============================================================
    SCORING ENGINE  (per reglement GDWKP26)

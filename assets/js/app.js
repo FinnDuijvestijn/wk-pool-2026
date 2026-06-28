@@ -15,6 +15,7 @@ const state = {
   tsFilter: { scope: "popular", team: "", pos: "", q: "" },   // topscorer pick page
   goalFilter: { scope: "selected", team: "", pos: "", q: "" }, // admin goals page (default: only chosen players)
   prizeEdit: null,          // admin prize-split working copy
+  viewUserId: null,         // admin: participant whose full entry is shown in a modal
   settings: null,
   teams: [],
   players: [],
@@ -94,6 +95,7 @@ async function navigate(screen) {
   if (screen === "admin" && !(state.session && state.session.is_admin)) screen = "dashboard";
   state.menuOpen = false;
   state.prizeEdit = null;   // re-init prize editor from saved settings on next admin visit
+  state.viewUserId = null;  // close any open participant-detail modal
   state.screen = screen;
   rerender();
 }
@@ -252,6 +254,10 @@ async function logout() {
    ============================================================ */
 function adminCount() { return state.users.filter(u => u.is_admin).length; }
 
+// Open / close the read-only modal that shows everything a participant filled in.
+function adminViewUser(id) { state.viewUserId = id; rerender(true); }
+function adminCloseView() { state.viewUserId = null; rerender(true); }
+
 async function adminToggleRole(id) {
   const u = state.users.find(x => x.id === id); if (!u) return;
   if (u.is_admin && adminCount() <= 1) { toast("Er moet minstens één beheerder blijven.", "err"); return; }
@@ -275,6 +281,20 @@ async function adminToggleEditUnlock(id) {
     if (id === state.session.id) state.editUnlocked = next;
     rerender(true);
     toast(next ? `${u.username} mag z'n voorspelling weer wijzigen.` : `Wijzigen voor ${u.username} weer vergrendeld.`, "ok");
+  } catch (e) { toast("Mislukt: " + e.message, "err"); }
+}
+async function adminResetPassword(id, name) {
+  if (id === state.session.id) { toast("Je kunt je eigen account hier niet resetten.", "err"); return; }
+  const u = state.users.find(x => x.id === id);
+  if (u && u.claimed === false) { toast(`${name} heeft nog geen account om te resetten.`, "err"); return; }
+  const yes = await confirmDialog("Wachtwoord resetten?",
+    `${name} kan daarna opnieuw inloggen door bij 'Registreren' hun naam uit het uitklapmenu te kiezen en een nieuw wachtwoord in te stellen. Hun voorspelling, punten en betaalstatus blijven behouden. Doorgaan?`,
+    "Ja, resetten");
+  if (!yes) return;
+  try {
+    await resetUserAccount(id);
+    await reloadAll(); rerender();
+    toast(`Account van ${name} gereset — ze kunnen zich opnieuw registreren via het uitklapmenu.`, "ok");
   } catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 async function adminDelete(id, name) {
@@ -454,9 +474,12 @@ function onClick(e) {
     case "pf-scope": setPlayerFilter(d.which, "scope", d.scope); break;
     case "savedraft": saveDraft(); break;
     case "submitfinal": submitFinal(); break;
+    case "admin-view": adminViewUser(d.id); break;
+    case "admin-view-close": adminCloseView(); break;
     case "admin-role": adminToggleRole(d.id); break;
     case "admin-paid": adminTogglePaid(d.id); break;
     case "admin-editunlock": adminToggleEditUnlock(d.id); break;
+    case "admin-reset": adminResetPassword(d.id, d.name); break;
     case "admin-delete": adminDelete(d.id, d.name); break;
     case "admin-deadline": adminSaveDeadline(); break;
     case "admin-prizes": adminSavePrizes(); break;
@@ -494,6 +517,7 @@ function onKeydown(e) {
   if (e.key === "Enter" && !state.session && (e.target.id === "au-password" || e.target.id === "au-confirm" || e.target.id === "au-username")) {
     e.preventDefault(); doAuth();
   }
+  if (e.key === "Escape" && state.viewUserId) { e.preventDefault(); adminCloseView(); }
 }
 
 /* ---------- countdown ticker ---------- */

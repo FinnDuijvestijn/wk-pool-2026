@@ -741,6 +741,80 @@ function renderReglement() {
   </div>`);
 }
 
+/* ------------------------------------------------------------
+   Admin: read-only modal with everything one participant filled in
+   (knock-out picks per round + their topscorers). Opens when an admin
+   clicks a participant in the "Deelnemers beheren" list.
+   ------------------------------------------------------------ */
+function renderUserDetailModal() {
+  const uid = state.viewUserId;
+  if (!uid) return "";
+  const u = (state.users || []).find(x => x.id === uid);
+  if (!u) return "";
+
+  const predBy = {}; (state.predictions || []).forEach(p => predBy[p.user_id] = p);
+  const d = predBy[uid] || emptyPrediction(uid);
+  const row = (state.leaderboard || []).find(r => r.id === uid) || { g: 0, k: 0, t: 0, total: 0 };
+  const tm = teamMap(), pm = playerMap();
+  const goals = (state.settings.results && state.settings.results.goals) || {};
+
+  const submitted = d.status === "ingeleverd";
+  const finalNow = submitted || deadlinePassed();
+  const statusCls = finalNow ? "status-done" : "status-concept";
+  const statusTxt = submitted ? "INGELEVERD ✓"
+    : deadlinePassed() ? "DEFINITIEF · LAATSTE CONCEPT"
+    : "CONCEPT · NIET INGELEVERD";
+
+  const sel16 = d.sel16.map(c => { const t = tm[c]; return t
+    ? `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;background:#F7F8FF;border:1px solid #DCE1FB;border-radius:11px;padding:10px 4px;"><span style="font-size:22px;">${tflag(t)}</span><span style="font-size:10px;font-weight:700;text-align:center;line-height:1.1;color:#3a3d45;">${esc(t.name)}</span></div>`
+    : ""; }).join("")
+    || `<div style="grid-column:1/-1;color:var(--muted2);font-size:13px;padding:6px 2px;">— geen teams gekozen —</div>`;
+
+  const champ = d.winner ? tm[d.winner] : null;
+
+  const tops = d.topscorers.map(pid => { const p = pm[pid]; if (!p) return ""; const g = Number(goals[p.id]) || 0;
+    return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:11px 13px;"><div style="width:40px;height:40px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none;">${pflag(p)}</div><div style="flex:1;min-width:0;"><div class="exp" style="font-weight:800;font-size:14px;">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted2);">${esc([p.country, p.club, p.posLabel].filter(Boolean).join(" · "))}</div></div><div style="text-align:right;flex:none;"><div class="exp" style="font-weight:900;font-size:17px;color:var(--green);">${g * goalPointsForPos(p.pos)}</div><div class="mono" style="font-size:9px;color:var(--muted2);">${g} GOALS · ${goalPointsForPos(p.pos)}/G</div></div></div>`;
+    }).join("")
+    || `<span style="font-size:12.5px;color:var(--muted2);">— geen topscorers gekozen —</span>`;
+
+  return `
+  <div class="modal-back">
+    <div class="detail-overlay" data-action="admin-view-close"></div>
+    <div class="modal modal-detail">
+      <button type="button" class="detail-close" data-action="admin-view-close" aria-label="Sluiten" title="Sluiten (Esc)">✕</button>
+      <div class="detail-head">
+        <div class="av" style="width:48px;height:48px;border-radius:50%;background:${colorFor(u.username)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;flex:none;">${initial(u.username)}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="eyebrow" style="margin:0;">Inzending deelnemer</div>
+          <h3 class="exp" style="font-weight:900;font-size:21px;margin:2px 0 0;">${esc(u.username)}</h3>
+        </div>
+        <div class="statusline ${statusCls}" style="flex:none;"><span class="dot"></span><span class="t">${statusTxt}</span></div>
+      </div>
+
+      <div class="stat-grid" style="margin:18px 0 4px;">
+        <div class="minicard"><div class="lbl">GROEPSFASE</div><div class="v">${row.g}</div></div>
+        <div class="minicard"><div class="lbl">KNOCK-OUT</div><div class="v" style="color:var(--blue);">${row.k}</div></div>
+        <div class="minicard"><div class="lbl">TOPSCORERS</div><div class="v" style="color:var(--green);">${row.t}</div></div>
+        <div class="minicard dark"><div class="lbl">TOTAAL</div><div class="v" style="color:var(--lime);">${row.total}</div></div>
+      </div>
+
+      <h4 class="detail-section-title">Laatste 16 <span>(${d.sel16.length}/16)</span></h4>
+      <div class="team-grid">${sel16}</div>
+
+      <h4 class="detail-section-title">Knock-out pad</h4>
+      <div style="display:flex;flex-direction:column;gap:13px;">
+        <div><div class="mono" style="font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:6px;">KWARTFINALISTEN (${d.quarter.length}/8)</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${chipFlags(d.quarter, "#F4FCFB", "#CFEFED")}</div></div>
+        <div><div class="mono" style="font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:6px;">HALVE FINALISTEN (${d.semi.length}/4)</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${chipFlags(d.semi, "#F3FBF6", "#C9EAD5")}</div></div>
+        <div><div class="mono" style="font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:6px;">FINALISTEN (${d.finalists.length}/2)</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${chipFlags(d.finalists, "#FEF6F2", "#F6D3C3")}</div></div>
+        <div style="display:flex;align-items:center;gap:11px;background:var(--navy);border-radius:12px;padding:12px 15px;color:#fff;"><span style="font-size:26px;">${champ ? tflag(champ) : "🏆"}</span><div><div class="mono" style="font-size:9px;color:var(--gold);letter-spacing:1px;">WERELDKAMPIOEN</div><div class="exp" style="font-weight:800;font-size:16px;">${champ ? esc(champ.name) : "— nog niet gekozen —"}</div></div></div>
+      </div>
+
+      <h4 class="detail-section-title">Topscorers <span>(${d.topscorers.length}/${TOPSCORER_COUNT})</span></h4>
+      <div style="display:flex;flex-direction:column;gap:9px;">${tops}</div>
+    </div>
+  </div>`;
+}
+
 /* ============================================================
    ADMIN
    ============================================================ */
@@ -761,8 +835,8 @@ function renderAdmin() {
       ? `<div class="mono" style="font-size:10px;color:var(--orange);">nog niet geregistreerd</div>`
       : `<div class="mono" style="font-size:11px;color:var(--muted2);">${new Date(u.created_at).toLocaleDateString("nl-NL")}</div>`;
     return `<div class="admin-grid admin-row">
-      <div style="display:flex;align-items:center;gap:11px;"><div class="av" style="width:32px;height:32px;border-radius:50%;background:${colorFor(u.username)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;">${initial(u.username)}</div>
-        <div><div style="font-weight:700;font-size:14px;">${esc(u.username)}</div>${subLabel}</div></div>
+      <div class="admin-who" data-action="admin-view" data-id="${u.id}" title="Bekijk alles wat ${esc(u.username)} heeft ingevuld" style="display:flex;align-items:center;gap:11px;cursor:pointer;"><div class="av" style="width:32px;height:32px;border-radius:50%;background:${colorFor(u.username)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;">${initial(u.username)}</div>
+        <div><div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;">${esc(u.username)}<span class="admin-who-eye">👁</span></div>${subLabel}</div></div>
       <div><span class="chip ${u.is_admin ? "chip-admin" : "chip-user"}">${u.is_admin ? "Admin" : "Deelnemer"}</span></div>
       <div class="col-hide"><span class="chip ${u.paid ? "chip-yes" : "chip-no"}" data-action="admin-paid" data-id="${u.id}">${u.paid ? "Betaald" : "Open"}</span></div>
       <div class="col-hide" style="display:flex;flex-direction:column;gap:5px;align-items:flex-start;">
@@ -771,7 +845,9 @@ function renderAdmin() {
       </div>
       <div class="col-hide"><input class="gp-input" type="number" value="${Number(u.group_points) || 0}" data-action="admin-gp" data-id="${u.id}" title="Groepsfase punten"></div>
       <div style="display:flex;gap:7px;justify-content:flex-end;">
+        <button type="button" class="btn btn-dark btn-sm" data-action="admin-view" data-id="${u.id}">Bekijk</button>
         <button type="button" class="btn btn-outline btn-sm" data-action="admin-role" data-id="${u.id}">${u.is_admin ? "Beheer afnemen" : "Maak admin"}</button>
+        ${unclaimed ? "" : `<button type="button" class="btn btn-outline btn-sm" data-action="admin-reset" data-id="${u.id}" data-name="${esc(u.username)}" title="Wachtwoord resetten — account komt weer vrij in het registermenu">Reset</button>`}
         <button type="button" class="btn btn-danger btn-sm" data-action="admin-delete" data-id="${u.id}" data-name="${esc(u.username)}">Verwijder</button>
       </div>
     </div>`;
@@ -874,7 +950,7 @@ function renderAdmin() {
       <div style="padding:18px 20px 0;"><h3 class="section-title">Deelnemers beheren</h3></div>
       <div class="admin-grid admin-head"><div>Deelnemer</div><div>Rol</div><div class="col-hide">Inleg</div><div class="col-hide">Voorspelling</div><div class="col-hide">Groepsf.</div><div style="text-align:right;">Acties</div></div>
       ${rows || `<div style="padding:20px;color:var(--muted2);">Nog geen deelnemers.</div>`}
-      <p style="font-size:12.5px;color:var(--muted2);margin:0;padding:14px 20px;">Tik op de <strong>inleg-chip</strong> om Betaald/Open te wisselen en op de <strong>🔒 Wijzigen-chip</strong> om een deelnemer (op verzoek) zijn voorspelling weer te laten aanpassen, ook ná inleveren of na de deadline. Groepsfase-punten worden direct opgeslagen. Deelnemers met "nog niet geregistreerd" claimen hun account zelf via het uitklapmenu.</p>
+      <p style="font-size:12.5px;color:var(--muted2);margin:0;padding:14px 20px;">Tik op de <strong>inleg-chip</strong> om Betaald/Open te wisselen en op de <strong>🔒 Wijzigen-chip</strong> om een deelnemer (op verzoek) zijn voorspelling weer te laten aanpassen, ook ná inleveren of na de deadline. Groepsfase-punten worden direct opgeslagen. Met <strong>Reset</strong> wis je het wachtwoord van een deelnemer die het vergeten is — hun account komt dan weer vrij in het registermenu om opnieuw te claimen (voorspelling en punten blijven behouden). Deelnemers met "nog niet geregistreerd" claimen hun account zelf via het uitklapmenu.</p>
     </div>
 
     <div class="admin-section">
@@ -915,6 +991,7 @@ function renderAdmin() {
         </div>
       </div>
     </div>
+    ${renderUserDetailModal()}
   </div>`);
 }
 
