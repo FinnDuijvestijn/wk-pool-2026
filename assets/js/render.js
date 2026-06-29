@@ -56,9 +56,13 @@ function deadlinePassed() {
 }
 // Admin granted me the right to edit again after the deadline.
 function editUnlocked() { return !!state.editUnlocked; }
+// True while an admin is filling in / editing a participant's entry on their behalf.
+function adminEditing() { return !!state.adminEdit; }
 // You can keep editing until the deadline — even after handing in a "final"
-// version. The deadline is the only hard lock (an admin can reopen it).
+// version. The deadline is the only hard lock (an admin can reopen it). An admin
+// editing on someone's behalf bypasses the lock entirely.
 function isLocked() {
+  if (adminEditing()) return false;
   return !editUnlocked() && deadlinePassed();
 }
 // A prediction counts as final once submitted OR once the deadline passes
@@ -345,6 +349,22 @@ function pickList(stageKey, sourceCodes, max, accent, lightBg, lightBorder) {
   }).join("");
 }
 
+// Sticky banner shown on the edit screens while an admin fills in for someone else.
+function renderAdminEditBar() {
+  if (!adminEditing()) return "";
+  return `
+  <div class="admin-edit-bar">
+    <div class="aeb-info">
+      <span class="aeb-ic">⚙️</span>
+      <div class="aeb-tx">
+        <div class="aeb-t">Beheerdersmodus — invullen namens <strong>${esc(state.adminEdit.username)}</strong></div>
+        <div class="aeb-s">Wijzigingen worden automatisch opgeslagen &amp; gelogd. De deelnemer kan dit zelf niet wijzigen.</div>
+      </div>
+    </div>
+    <button type="button" class="btn aeb-done" data-action="admin-finish-edit">✓ Klaar</button>
+  </div>`;
+}
+
 function renderVoorspellingen() {
   const d = state.draft;
   const tm = teamMap();
@@ -384,6 +404,7 @@ function renderVoorspellingen() {
 
   return renderShell(`
   <div class="page">
+    ${renderAdminEditBar()}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:8px;">
       <div>
         <div class="eyebrow">Stap 1 van 2 · Teams</div>
@@ -391,7 +412,7 @@ function renderVoorspellingen() {
       </div>
       <div class="deadpill"><span style="font-size:14px;">⏳</span><span class="t">DEADLINE: ${fmtDeadline(state.settings.deadline).toUpperCase()}</span></div>
     </div>
-    ${lockBanner || `<div class="lockbar" style="margin-top:14px;"><span style="font-size:15px;">🛈</span><p>Je kunt je voorspellingen <strong>blijven wijzigen tot de deadline</strong>. Daarna telt automatisch je laatste inzending mee.</p></div>`}
+    ${adminEditing() ? "" : (lockBanner || `<div class="lockbar" style="margin-top:14px;"><span style="font-size:15px;">🛈</span><p>Je kunt je voorspellingen <strong>blijven wijzigen tot de deadline</strong>. Daarna telt automatisch je laatste inzending mee.</p></div>`)}
 
     <div class="stage-card">
       <div class="stage-head" style="justify-content:space-between;flex-wrap:wrap;">
@@ -449,9 +470,15 @@ function renderVoorspellingen() {
     </button>` : `
     <div class="topscorer-cta done" data-action="nav" data-screen="topscorers">
       <span class="ic">✓</span>
-      <span class="tx"><span class="t1">Je ${TOPSCORER_COUNT} topscorers zijn gekozen</span><span class="t2">Klik om ze nog te wijzigen</span></span>
+      <span class="tx"><span class="t1">${adminEditing() ? "De" : "Je"} ${TOPSCORER_COUNT} topscorers zijn gekozen</span><span class="t2">Klik om ze nog te wijzigen</span></span>
       <span class="ar">→</span>
     </div>`}
+    ${adminEditing() ? `
+    <div class="submitbar">
+      <div style="font-size:13px;color:var(--muted);">Je vult in namens <strong>${esc(state.adminEdit.username)}</strong>. Alles wordt automatisch opgeslagen.</div>
+      <button type="button" class="btn btn-primary" data-action="admin-finish-edit">✓ Klaar — terug naar admin</button>
+    </div>
+    ` : `
     <div class="submitbar">
       <div style="font-size:13px;color:var(--muted);">Je voortgang wordt automatisch bewaard. Je kunt tot de deadline blijven wijzigen.</div>
       <div style="display:flex;gap:10px;">
@@ -460,6 +487,7 @@ function renderVoorspellingen() {
       </div>
     </div>
     ${allComplete ? "" : `<p style="font-size:12.5px;color:var(--muted2);margin:12px 2px 0;">Je kunt pas definitief inleveren als alle rondes (16/8/4/2/1) én ${TOPSCORER_COUNT} topscorers zijn ingevuld.</p>`}
+    `}
     `}
   </div>`);
 }
@@ -531,20 +559,23 @@ function renderTopscorers() {
 
   return renderShell(`
   <div class="page">
+    ${renderAdminEditBar()}
     <div class="eyebrow">Stap 2 van 2 · Spelers</div>
-    <h1 class="display" style="font-size:30px;margin-bottom:6px;">Kies je 3 topscorers</h1>
+    <h1 class="display" style="font-size:30px;margin-bottom:6px;">Kies ${adminEditing() ? "de" : "je"} 3 topscorers</h1>
     <p style="font-size:14px;color:var(--muted);margin:0 0 22px;max-width:600px;">Punten per doelpunt in de knock-outfase, <strong style="color:var(--green);">afhankelijk van de positie</strong> van je speler: <strong>keeper/verdediger 80</strong> · <strong>middenvelder 40</strong> · <strong>aanvaller 20</strong> punten per goal. Geen punten voor assists.</p>
-    ${isLocked()
+    ${adminEditing() ? "" : (isLocked()
       ? `<div class="lockbar"><span style="font-size:15px;">🔒</span><p>De deadline is verstreken — topscorers kunnen niet meer gewijzigd worden.</p></div>`
       : (deadlinePassed() && editUnlocked()
           ? `<div class="lockbar" style="background:#EEF1FF;border-color:#C9D2F7;"><span style="font-size:15px;">🔓</span><p>Een beheerder heeft jouw voorspelling <strong>opengezet om te wijzigen</strong> na de deadline.</p></div>`
           : (state.draft.status === "ingeleverd"
               ? `<div class="lockbar" style="background:#E9F7EE;border-color:#BFE6CE;"><span style="font-size:15px;">✅</span><p>Ingeleverd — je kunt je topscorers nog wijzigen tot de deadline.</p></div>`
-              : ""))}
+              : "")))}
     <div class="top3-grid">${slots.join("")}</div>
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:0 0 12px;">
       <h3 class="section-title" style="margin:0;">Spelers <span style="color:var(--muted2);font-weight:600;">(${d.topscorers.length}/${TOPSCORER_COUNT} gekozen)</span></h3>
-      ${isLocked() ? "" : `<button type="button" class="btn btn-primary btn-sm" style="padding:9px 16px;" data-action="savedraft">Concept opslaan</button>`}
+      ${adminEditing()
+        ? `<button type="button" class="btn btn-primary btn-sm" style="padding:9px 16px;" data-action="admin-finish-edit">✓ Klaar</button>`
+        : (isLocked() ? "" : `<button type="button" class="btn btn-primary btn-sm" style="padding:9px 16px;" data-action="savedraft">Concept opslaan</button>`)}
     </div>
     ${renderPlayerFilters("ts", state.tsFilter)}
     <div class="player-grid">${grid}</div>${moreNote}
@@ -811,8 +842,46 @@ function renderUserDetailModal() {
 
       <h4 class="detail-section-title">Topscorers <span>(${d.topscorers.length}/${TOPSCORER_COUNT})</span></h4>
       <div style="display:flex;flex-direction:column;gap:9px;">${tops}</div>
+
+      <div class="detail-actions">
+        ${(d.sel16.length === 16 && d.quarter.length === 8 && d.semi.length === 4 && d.finalists.length === 2 && d.winner && d.topscorers.length === TOPSCORER_COUNT)
+          ? `<span class="detail-actions-hint done">✓ Volledig ingevuld</span>`
+          : `<span class="detail-actions-hint warn">⚠ Nog niet compleet</span>`}
+        <button type="button" class="btn btn-dark" data-action="admin-edit-start" data-id="${uid}">✏️ Invullen / bewerken</button>
+      </div>
+      <p class="detail-actions-note">Als beheerder vul je dit in namens ${esc(u.username)} — ook ná de deadline. De deelnemer kan zelf niets meer wijzigen. Elke bewerking komt in het logboek.</p>
     </div>
   </div>`;
+}
+
+// Audit trail of admin actions, so multiple admins can see who did what.
+function fmtLogWhen(iso) {
+  const dt = new Date(iso);
+  const now = new Date();
+  const time = `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+  if (dt.toDateString() === now.toDateString()) return `vandaag ${time}`;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (dt.toDateString() === y.toDateString()) return `gisteren ${time}`;
+  const days = ["zo", "ma", "di", "wo", "do", "vr", "za"];
+  const mon = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+  return `${days[dt.getDay()]} ${dt.getDate()} ${mon[dt.getMonth()]} · ${time}`;
+}
+function renderAdminLog() {
+  const log = state.adminLog || [];
+  const items = log.map(a => `
+    <div class="log-item">
+      <div class="log-av" style="background:${colorFor(a.admin_name || "?")};">${initial(a.admin_name)}</div>
+      <div class="log-body">
+        <div class="log-line"><strong>${esc(a.admin_name)}</strong> <span class="log-act">${esc(a.action)}</span>${a.target_name ? ` <span class="log-tgt">${esc(a.target_name)}</span>` : ""}</div>
+        ${a.detail ? `<div class="log-detail">${esc(a.detail)}</div>` : ""}
+      </div>
+      <div class="log-when">${fmtLogWhen(a.created_at)}</div>
+    </div>`).join("") || `<div class="pf-empty">Nog geen acties gelogd. Zodra een beheerder iets doet (bv. iemands voorspelling invullen), verschijnt het hier.</div>`;
+  return `
+    <div class="admin-section">
+      <h3 class="section-title">Logboek <span style="font-weight:600;color:var(--muted2);font-size:13px;">— wat beheerders al deden (zodat jullie elkaar niet overlappen)</span></h3>
+      <div class="log-list">${items}</div>
+    </div>`;
 }
 
 /* ============================================================
@@ -950,8 +1019,10 @@ function renderAdmin() {
       <div style="padding:18px 20px 0;"><h3 class="section-title">Deelnemers beheren</h3></div>
       <div class="admin-grid admin-head"><div>Deelnemer</div><div>Rol</div><div class="col-hide">Inleg</div><div class="col-hide">Voorspelling</div><div class="col-hide">Groepsf.</div><div style="text-align:right;">Acties</div></div>
       ${rows || `<div style="padding:20px;color:var(--muted2);">Nog geen deelnemers.</div>`}
-      <p style="font-size:12.5px;color:var(--muted2);margin:0;padding:14px 20px;">Tik op de <strong>inleg-chip</strong> om Betaald/Open te wisselen en op de <strong>🔒 Wijzigen-chip</strong> om een deelnemer (op verzoek) zijn voorspelling weer te laten aanpassen, ook ná inleveren of na de deadline. Groepsfase-punten worden direct opgeslagen. Met <strong>Reset</strong> wis je het wachtwoord van een deelnemer die het vergeten is — hun account komt dan weer vrij in het registermenu om opnieuw te claimen (voorspelling en punten blijven behouden). Deelnemers met "nog niet geregistreerd" claimen hun account zelf via het uitklapmenu.</p>
+      <p style="font-size:12.5px;color:var(--muted2);margin:0;padding:14px 20px;">Tik op een deelnemer (of <strong>Bekijk</strong>) om hun volledige inzending te zien; daar kun je als beheerder ook hun voorspelling <strong>invullen of bewerken namens hen</strong> — ook ná de deadline. Tik op de <strong>inleg-chip</strong> om Betaald/Open te wisselen en op de <strong>🔒 Wijzigen-chip</strong> om een deelnemer (op verzoek) zijn voorspelling weer te laten aanpassen, ook ná inleveren of na de deadline. Groepsfase-punten worden direct opgeslagen. Met <strong>Reset</strong> wis je het wachtwoord van een deelnemer die het vergeten is — hun account komt dan weer vrij in het registermenu om opnieuw te claimen (voorspelling en punten blijven behouden). Deelnemers met "nog niet geregistreerd" claimen hun account zelf via het uitklapmenu.</p>
     </div>
+
+    ${renderAdminLog()}
 
     <div class="admin-section">
       <h3 class="section-title">Uitslagen invoeren <span style="font-weight:600;color:var(--muted2);font-size:13px;">— bepaalt de scores in het klassement</span></h3>

@@ -47,23 +47,41 @@ create table if not exists public.settings (
   updated_at timestamptz not null default now()
 );
 
+-- 4) ADMIN ACTION LOG (audit trail) -------------------------
+-- Lets multiple admins see what each other already did (filling in a
+-- participant's prediction on their behalf, resetting passwords, etc.).
+create table if not exists public.admin_actions (
+  id          uuid primary key default gen_random_uuid(),
+  admin_id    uuid references public.users(id) on delete set null,
+  admin_name  text not null,
+  target_id   uuid references public.users(id) on delete set null,
+  target_name text,
+  action      text not null,         -- short verb, e.g. 'voorspelling bewerkt'
+  detail      text,                  -- human-readable summary
+  created_at  timestamptz not null default now()
+);
+create index if not exists admin_actions_created_idx on public.admin_actions (created_at desc);
+
 -- ============================================================
 --  Row Level Security
 --  This is a low-stakes internal office pool with no e-mail / no
 --  sensitive data, so we allow the public (anon) key full access.
 --  Everything runs client-side against these permissive policies.
 -- ============================================================
-alter table public.users       enable row level security;
-alter table public.predictions enable row level security;
-alter table public.settings    enable row level security;
+alter table public.users         enable row level security;
+alter table public.predictions   enable row level security;
+alter table public.settings      enable row level security;
+alter table public.admin_actions enable row level security;
 
-drop policy if exists "wkpool_all_users"       on public.users;
-drop policy if exists "wkpool_all_predictions" on public.predictions;
-drop policy if exists "wkpool_all_settings"    on public.settings;
+drop policy if exists "wkpool_all_users"         on public.users;
+drop policy if exists "wkpool_all_predictions"   on public.predictions;
+drop policy if exists "wkpool_all_settings"      on public.settings;
+drop policy if exists "wkpool_all_admin_actions" on public.admin_actions;
 
-create policy "wkpool_all_users"       on public.users       for all using (true) with check (true);
-create policy "wkpool_all_predictions" on public.predictions for all using (true) with check (true);
-create policy "wkpool_all_settings"    on public.settings    for all using (true) with check (true);
+create policy "wkpool_all_users"         on public.users         for all using (true) with check (true);
+create policy "wkpool_all_predictions"   on public.predictions   for all using (true) with check (true);
+create policy "wkpool_all_settings"      on public.settings      for all using (true) with check (true);
+create policy "wkpool_all_admin_actions" on public.admin_actions for all using (true) with check (true);
 
 -- Done. Your two values for assets/js/config.js are under:
 --   Supabase Dashboard → Project Settings → Data API (or API)

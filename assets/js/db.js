@@ -193,6 +193,28 @@ async function resetUserAccount(id) {
   if (error) throw error;
 }
 
+/* ---------- admin action log (audit trail) ---------- */
+// Records a single administrative action. Best-effort: a logging failure must
+// never block the action itself, so callers wrap this in try/catch (or ignore).
+async function logAdminAction(entry) {
+  const row = {
+    admin_id: entry.admin_id || null,
+    admin_name: entry.admin_name || "?",
+    target_id: entry.target_id || null,
+    target_name: entry.target_name || null,
+    action: entry.action || "actie",
+    detail: entry.detail || null
+  };
+  const { error } = await sb.from("admin_actions").insert(row);
+  if (error) throw error;
+}
+async function loadAdminActions(limit) {
+  const { data, error } = await sb.from("admin_actions")
+    .select("*").order("created_at", { ascending: false }).limit(limit || 60);
+  if (error) throw error;
+  return data || [];
+}
+
 /* ============================================================
    SCORING ENGINE  (per reglement GDWKP26)
    ============================================================ */

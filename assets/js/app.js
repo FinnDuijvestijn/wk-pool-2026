@@ -16,6 +16,9 @@ const state = {
   goalFilter: { scope: "selected", team: "", pos: "", q: "" }, // admin goals page (default: only chosen players)
   prizeEdit: null,          // admin prize-split working copy
   viewUserId: null,         // admin: participant whose full entry is shown in a modal
+  adminEdit: null,          // admin: { userId, username, touched } while filling in for someone else
+  draftBackup: null,        // admin's own draft, parked while editing on someone's behalf
+  adminLog: [],             // recent admin actions (audit trail)
   settings: null,
   teams: [],
   players: [],
@@ -68,6 +71,9 @@ async function reloadAll() {
   state.players = buildPlayerPool(state.settings.players);
   state.users = await loadAllUsers();
   state.predictions = await loadAllPredictions();
+  if (state.session && state.session.is_admin) {
+    try { state.adminLog = await loadAdminActions(); } catch (e) { state.adminLog = state.adminLog || []; }
+  }
 
   // refresh my own record (admin status may have changed; account may be gone)
   const meUser = state.users.find(u => u.id === state.session.id);
@@ -87,6 +93,12 @@ async function reloadAll() {
 
 /* ---------- navigation ---------- */
 async function navigate(screen) {
+  // Leaving the edit screens while filling in for someone? Wrap up that session
+  // first (save + log + restore my own draft). Staying within the two edit
+  // screens keeps admin-edit mode active so the funnel ↔ topscorers link works.
+  if (state.adminEdit && screen !== "voorspellingen" && screen !== "topscorers") {
+    await exitAdminEdit();
+  }
   // auto-save an unsaved draft when leaving a form
   if (state.dirty && (state.screen === "voorspellingen" || state.screen === "topscorers") && !isLocked()) {
     if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
@@ -147,6 +159,7 @@ function toggleStage(stage, code) {
   }
   sanitizeDraft();
   state.dirty = true;
+  if (state.adminEdit) state.adminEdit.touched = true;
   scheduleAutosave();
   rerender(true);
 }
@@ -157,6 +170,7 @@ function toggleTopscorer(id) {
   if (i >= 0) arr.splice(i, 1);
   else if (arr.length < TOPSCORER_COUNT) arr.push(id);
   state.dirty = true;
+  if (state.adminEdit) state.adminEdit.touched = true;
   scheduleAutosave();
   rerender(true);
 }
@@ -258,11 +272,78 @@ function adminCount() { return state.users.filter(u => u.is_admin).length; }
 function adminViewUser(id) { state.viewUserId = id; rerender(true); }
 function adminCloseView() { state.viewUserId = null; rerender(true); }
 
+/* ----- edit a participant's prediction on their behalf (bypasses the deadline) -----
+   The admin's own working draft is parked in state.draftBackup; state.draft is
+   swapped to the target's prediction so the normal funnel/topscorer screens edit it.
+   isLocked() returns false while state.adminEdit is set (see render.js). */
+async function adminStartEdit(id) {
+  if (!(state.session && state.session.is_admin)) return;   // admins only
+  const u = state.users.find(x => x.id === id); if (!u) return;
+  try {
+    const pred = await loadMyPrediction(id);   // loadMyPrediction works for any user_id
+    pred.winner = pred.winner || null;
+    state.draftBackup = state.draft;
+    state.draft = pred;
+    state.adminEdit = { userId: id, username: u.username, touched: false };
+    state.dirty = false;
+    state.viewUserId = null;
+    state.menuOpen = false;
+    state.screen = "voorspellingen";
+    rerender();
+    toast(`Je vult nu in namens ${u.username}.`, "ok");
+  } catch (e) { toast("Kon de voorspelling niet laden: " + e.message, "err"); }
+}
+
+// Save + log + restore my own draft. Does NOT navigate (caller decides where to go).
+async function exitAdminEdit() {
+  const ae = state.adminEdit; if (!ae) return null;
+  if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+  try { if (state.dirty) { await savePrediction(state.draft); state.dirty = false; } } catch (e) {}
+  if (ae.touched) {
+    const d = state.draft;
+    const detail = `Rondes ${d.sel16.length}/16 · ${d.quarter.length}/8 · ${d.semi.length}/4 · ${d.finalists.length}/2 · ${d.winner ? "kampioen ✓" : "kampioen –"}; ${d.topscorers.length}/${TOPSCORER_COUNT} topscorers`;
+    try {
+      await logAdminAction({
+        admin_id: state.session.id, admin_name: state.session.username,
+        target_id: ae.userId, target_name: ae.username,
+        action: "voorspelling bewerkt", detail
+      });
+    } catch (e) {}
+  }
+  state.adminEdit = null;
+  state.draft = state.draftBackup || await loadMyPrediction(state.session.id);
+  state.draft.winner = state.draft.winner || null;
+  state.draftBackup = null;
+  state.dirty = false;
+  try { await reloadAll(); } catch (e) {}
+  return ae;
+}
+
+// "Klaar" button on the edit screens → finish and return to the admin page.
+async function adminFinishEdit() {
+  const ae = await exitAdminEdit();
+  state.screen = "admin";
+  rerender();
+  if (ae) toast(ae.touched ? `Klaar — wijzigingen namens ${ae.username} opgeslagen en gelogd.` : `Geen wijzigingen voor ${ae.username}.`, "ok");
+}
+
+// Best-effort audit-log write; never let a logging hiccup abort the action.
+async function logAdmin(action, targetId, targetName, detail) {
+  try {
+    await logAdminAction({
+      admin_id: state.session.id, admin_name: state.session.username,
+      target_id: targetId || null, target_name: targetName || null,
+      action, detail: detail || null
+    });
+  } catch (e) {}
+}
+
 async function adminToggleRole(id) {
   const u = state.users.find(x => x.id === id); if (!u) return;
   if (u.is_admin && adminCount() <= 1) { toast("Er moet minstens één beheerder blijven.", "err"); return; }
   try {
     await updateUser(id, { is_admin: !u.is_admin });
+    await logAdmin(!u.is_admin ? "beheerder gemaakt" : "beheer afgenomen", id, u.username);
     await reloadAll(); rerender();
     toast(!u.is_admin ? `${u.username} is nu beheerder.` : `Beheer van ${u.username} afgenomen.`, "ok");
   } catch (e) { toast("Mislukt: " + e.message, "err"); }
@@ -279,6 +360,8 @@ async function adminToggleEditUnlock(id) {
     await updateUser(id, { edit_unlocked: next });
     u.edit_unlocked = next;
     if (id === state.session.id) state.editUnlocked = next;
+    await logAdmin(next ? "wijzigen opengezet" : "wijzigen vergrendeld", id, u.username);
+    try { state.adminLog = await loadAdminActions(); } catch (e) {}
     rerender(true);
     toast(next ? `${u.username} mag z'n voorspelling weer wijzigen.` : `Wijzigen voor ${u.username} weer vergrendeld.`, "ok");
   } catch (e) { toast("Mislukt: " + e.message, "err"); }
@@ -293,6 +376,7 @@ async function adminResetPassword(id, name) {
   if (!yes) return;
   try {
     await resetUserAccount(id);
+    await logAdmin("wachtwoord gereset", id, name);
     await reloadAll(); rerender();
     toast(`Account van ${name} gereset — ze kunnen zich opnieuw registreren via het uitklapmenu.`, "ok");
   } catch (e) { toast("Mislukt: " + e.message, "err"); }
@@ -303,8 +387,11 @@ async function adminDelete(id, name) {
   if (u && u.is_admin && adminCount() <= 1) { toast("Er moet minstens één beheerder blijven.", "err"); return; }
   const yes = await confirmDialog("Deelnemer verwijderen?", `Weet je zeker dat je ${name} en hun voorspellingen wilt verwijderen?`, "Verwijderen");
   if (!yes) return;
-  try { await deleteUser(id); await reloadAll(); rerender(); toast(`${name} verwijderd.`, "ok"); }
-  catch (e) { toast("Mislukt: " + e.message, "err"); }
+  try {
+    await deleteUser(id);
+    await logAdmin("deelnemer verwijderd", null, name);
+    await reloadAll(); rerender(); toast(`${name} verwijderd.`, "ok");
+  } catch (e) { toast("Mislukt: " + e.message, "err"); }
 }
 async function adminSetGroupPoints(id, value) {
   const v = Math.max(0, parseInt(value, 10) || 0);
@@ -389,9 +476,10 @@ function adminSetGoal(id, value) {
   state.settings.results.goals = state.settings.results.goals || {};
   state.settings.results.goals[id] = Math.max(0, parseInt(value, 10) || 0);
 }
-async function adminSaveResults() {
+async function adminSaveResults(what) {
   try {
     await saveSettings({ results: state.settings.results });
+    await logAdmin(what === "doelpunten" ? "doelpunten bijgewerkt" : "uitslagen bijgewerkt", null, null);
     await reloadAll(); rerender();
     toast("Uitslagen opgeslagen — klassement herberekend.", "ok");
   } catch (e) { toast("Mislukt: " + e.message, "err"); }
@@ -476,6 +564,8 @@ function onClick(e) {
     case "submitfinal": submitFinal(); break;
     case "admin-view": adminViewUser(d.id); break;
     case "admin-view-close": adminCloseView(); break;
+    case "admin-edit-start": adminStartEdit(d.id); break;
+    case "admin-finish-edit": adminFinishEdit(); break;
     case "admin-role": adminToggleRole(d.id); break;
     case "admin-paid": adminTogglePaid(d.id); break;
     case "admin-editunlock": adminToggleEditUnlock(d.id); break;
@@ -487,8 +577,8 @@ function onClick(e) {
     case "prize-even": adminPrizeEven(); break;
     case "admin-result": adminToggleResult(d.stage, d.code); break;
     case "admin-winner": adminSetWinner(d.code); break;
-    case "admin-save-results": adminSaveResults(); break;
-    case "admin-save-goals": adminSaveResults(); break;
+    case "admin-save-results": adminSaveResults("uitslagen"); break;
+    case "admin-save-goals": adminSaveResults("doelpunten"); break;
     case "admin-add-player": adminAddPlayer(); break;
     case "admin-del-player": adminDelPlayer(d.id); break;
     case "admin-add-team": adminAddTeam(); break;
