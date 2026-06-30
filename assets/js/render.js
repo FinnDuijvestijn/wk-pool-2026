@@ -70,6 +70,9 @@ function isLocked() {
 function effectiveSubmitted() {
   return (state.draft && state.draft.status === "ingeleverd") || deadlinePassed();
 }
+// Once the deadline passes nobody can still change anything, so it's safe to let
+// everyone peek at what others picked. Admins can always look.
+function canSeeOtherEntries() { return deadlinePassed() || !!(state.session && state.session.is_admin); }
 function participants() { return (state.users || []).length; }
 function entryFee() { return (state.settings && state.settings.entry_fee) || 10; }
 function pot() { return participants() * entryFee(); }
@@ -238,8 +241,9 @@ function renderDashboard() {
   else if (submitted) { statusColor = "var(--green)"; statusText = "Ingeleverd ✓"; statusSub = "Je kunt nog wijzigen tot de deadline"; }
   else { statusColor = "var(--orange)"; statusText = "Concept opgeslagen"; statusSub = "Nog niet definitief ingeleverd"; }
 
+  const canPeek = canSeeOtherEntries();
   const top5 = (state.leaderboard || []).slice(0, 5).map(r => `
-    <div class="mini-row ${r.id === state.session.id ? "me" : ""}">
+    <div class="mini-row ${r.id === state.session.id ? "me" : ""} ${canPeek ? "clickable" : ""}" ${canPeek ? `data-action="view-user" data-id="${r.id}"` : ""}>
       <span class="rk">${r.rank}</span>
       <div class="av" style="background:${colorFor(r.name)};">${initial(r.name)}</div>
       <span class="nm">${esc(r.name)}</span>
@@ -592,8 +596,11 @@ function renderKlassement() {
   const podBg = ["#FFFBEF", "#FBFAF5", "#FCF6F0"];
   const podBorder = ["#E8B43A", "#C9C4B5", "#D9A06A"];
 
+  const canPeek = canSeeOtherEntries();
+  const peekAttr = r => canPeek ? `data-action="view-user" data-id="${r.id}"` : "";
+
   const podium = board.slice(0, 3).map((r, i) => `
-    <div class="podium ${i === 0 ? "first" : ""}" style="background:${podBg[i]};border:1.5px solid ${podBorder[i]};">
+    <div class="podium ${i === 0 ? "first" : ""} ${canPeek ? "clickable" : ""}" style="background:${podBg[i]};border:1.5px solid ${podBorder[i]};" ${peekAttr(r)}>
       <div class="medal">${medals[i]}</div>
       <div class="av" style="background:${colorFor(r.name)};">${initial(r.name)}</div>
       <div class="nm">${esc(r.name)}</div>
@@ -602,12 +609,13 @@ function renderKlassement() {
     </div>`).join("");
 
   const boardRow = (r, rank) => `
-    <div class="board-row ${r.id === state.session.id ? "me" : ""}">
+    <div class="board-row ${r.id === state.session.id ? "me" : ""} ${canPeek ? "clickable" : ""}" ${peekAttr(r)}>
       <div class="rk" style="color:${rank <= 3 ? "var(--gold)" : "#c2bdb0"};">${rank}</div>
       <div class="who">
         <div class="av" style="background:${colorFor(r.name)};">${initial(r.name)}</div>
         <span class="nm">${esc(r.name)}</span>
         ${r.id === state.session.id ? `<span class="tag-me">JIJ</span>` : ""}
+        ${canPeek ? `<span class="peek-ic" title="Bekijk voorspelling">👁</span>` : ""}
       </div>
       <div class="num">${r.g}</div>
       <div class="num">${r.k}</div>
@@ -620,12 +628,13 @@ function renderKlassement() {
   // Final group-phase standings — compact: just the group-phase points.
   const groupBoard = board.slice().sort((a, b) => b.g - a.g || a.name.localeCompare(b.name));
   const groupRows = groupBoard.map((r, i) => `
-    <div class="board-row ${r.id === state.session.id ? "me" : ""}">
+    <div class="board-row ${r.id === state.session.id ? "me" : ""} ${canPeek ? "clickable" : ""}" ${peekAttr(r)}>
       <div class="rk" style="color:${i < 3 ? "var(--gold)" : "#c2bdb0"};">${i + 1}</div>
       <div class="who">
         <div class="av" style="background:${colorFor(r.name)};">${initial(r.name)}</div>
         <span class="nm">${esc(r.name)}</span>
         ${r.id === state.session.id ? `<span class="tag-me">JIJ</span>` : ""}
+        ${canPeek ? `<span class="peek-ic" title="Bekijk voorspelling">👁</span>` : ""}
       </div>
       <div class="tot">${r.g}</div>
     </div>`).join("");
@@ -637,6 +646,9 @@ function renderKlassement() {
   <div class="page">
     <div class="eyebrow">Eindklassement · Live</div>
     <h1 class="display" style="font-size:30px;margin-bottom:22px;">Klassement</h1>
+    ${canPeek
+      ? `<div class="peek-hint"><span style="font-size:15px;">👁</span><p>De deadline is verstreken — <strong>tik op een deelnemer</strong> om te zien wat hij/zij heeft voorspeld.</p></div>`
+      : `<div class="peek-hint locked"><span style="font-size:15px;">🔒</span><p>De voorspellingen van anderen worden zichtbaar <strong>zodra de deadline verstrijkt</strong>.</p></div>`}
     ${board.length >= 3 ? `<div class="podium-grid">${podium}</div>` : ""}
     <div class="board">
       ${headRow}
@@ -773,15 +785,17 @@ function renderReglement() {
 }
 
 /* ------------------------------------------------------------
-   Admin: read-only modal with everything one participant filled in
-   (knock-out picks per round + their topscorers). Opens when an admin
-   clicks a participant in the "Deelnemers beheren" list.
+   Read-only modal with everything one participant filled in (knock-out picks
+   per round + their topscorers). Admins open it from the "Deelnemers beheren"
+   list (and can edit from here); everyone can open it from the leaderboard once
+   the deadline has passed, to see what others chose.
    ------------------------------------------------------------ */
 function renderUserDetailModal() {
   const uid = state.viewUserId;
   if (!uid) return "";
   const u = (state.users || []).find(x => x.id === uid);
   if (!u) return "";
+  const isAdmin = !!(state.session && state.session.is_admin);
 
   const predBy = {}; (state.predictions || []).forEach(p => predBy[p.user_id] = p);
   const d = predBy[uid] || emptyPrediction(uid);
@@ -842,7 +856,7 @@ function renderUserDetailModal() {
 
       <h4 class="detail-section-title">Topscorers <span>(${d.topscorers.length}/${TOPSCORER_COUNT})</span></h4>
       <div style="display:flex;flex-direction:column;gap:9px;">${tops}</div>
-
+      ${isAdmin ? `
       <div class="detail-actions">
         ${(d.sel16.length === 16 && d.quarter.length === 8 && d.semi.length === 4 && d.finalists.length === 2 && d.winner && d.topscorers.length === TOPSCORER_COUNT)
           ? `<span class="detail-actions-hint done">✓ Volledig ingevuld</span>`
@@ -850,6 +864,7 @@ function renderUserDetailModal() {
         <button type="button" class="btn btn-dark" data-action="admin-edit-start" data-id="${uid}">✏️ Invullen / bewerken</button>
       </div>
       <p class="detail-actions-note">Als beheerder vul je dit in namens ${esc(u.username)} — ook ná de deadline. De deelnemer kan zelf niets meer wijzigen. Elke bewerking komt in het logboek.</p>
+      ` : ""}
     </div>
   </div>`;
 }
@@ -1062,7 +1077,6 @@ function renderAdmin() {
         </div>
       </div>
     </div>
-    ${renderUserDetailModal()}
   </div>`);
 }
 
@@ -1079,7 +1093,9 @@ function renderApp() {
     dashboard: renderDashboard, voorspellingen: renderVoorspellingen, topscorers: renderTopscorers,
     klassement: renderKlassement, mijn: renderMijn, reglement: renderReglement, admin: renderAdmin
   };
-  root.innerHTML = (map[scr] || renderDashboard)();
+  // The participant-detail modal can be opened from several screens (admin list,
+  // leaderboard after the deadline), so render it at the root for any screen.
+  root.innerHTML = (map[scr] || renderDashboard)() + renderUserDetailModal();
 }
 
 function renderSetup() {

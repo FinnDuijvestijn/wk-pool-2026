@@ -271,6 +271,13 @@ function adminCount() { return state.users.filter(u => u.is_admin).length; }
 // Open / close the read-only modal that shows everything a participant filled in.
 function adminViewUser(id) { state.viewUserId = id; rerender(true); }
 function adminCloseView() { state.viewUserId = null; rerender(true); }
+// Same modal, opened by anyone from the leaderboard — but only once the deadline
+// has passed (before that, peeking at others' picks would let people copy).
+function viewUserEntry(id) {
+  const isAdmin = state.session && state.session.is_admin;
+  if (!isAdmin && !deadlinePassed()) { toast("Je kunt andermans voorspelling pas na de deadline bekijken.", "err"); return; }
+  state.viewUserId = id; rerender(true);
+}
 
 /* ----- edit a participant's prediction on their behalf (bypasses the deadline) -----
    The admin's own working draft is parked in state.draftBackup; state.draft is
@@ -563,6 +570,7 @@ function onClick(e) {
     case "savedraft": saveDraft(); break;
     case "submitfinal": submitFinal(); break;
     case "admin-view": adminViewUser(d.id); break;
+    case "view-user": viewUserEntry(d.id); break;
     case "admin-view-close": adminCloseView(); break;
     case "admin-edit-start": adminStartEdit(d.id); break;
     case "admin-finish-edit": adminFinishEdit(); break;
